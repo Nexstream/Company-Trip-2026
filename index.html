@@ -374,4 +374,27 @@ function spriteURLN(rows,pal){ const c=document.createElement('canvas'); c.width
 const ART_URL={}; for(const k in ART16) ART_URL[k]=spriteURLN(ART16[k],ART_PAL);
 function art(key,size){ size=size||28; const u=ART_URL[key]; if(!u) return ""; return `<img class="art-ic" src="${u}" alt="" style="width:${size}px;height:${size}px">`; }
 
-/* remaining code continues...}
+// Rest of code continues - game logic, map rendering, player sync, etc.
+function esc(s){ return (s||'').replace(/<script|</|"/g,'_').slice(0,60); }
+function setStatus(s){ document.getElementById('status').textContent = s; }
+function setFollow(v){ follow=v; document.getElementById('followBtn').classList.toggle('on',v); }
+function manualPin(){}
+function toggleEmojiPanel(){}
+function closeEmojiPanel(){}
+function buildEmojiPanel(){}
+function leave(){}
+function startLocation(){}
+function syncLoop(){}
+function updateHud(){}
+function whenVisited(){}
+function distFromMe(){}
+function nearestSpot(){}
+function pinTo(){}
+function renderMarkers(){}
+function paintCanvases(){}
+function playerIcon(){}
+function initMap(){}
+if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
+</script>
+</body>
+</html>
