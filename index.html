@@ -74,7 +74,9 @@
   #cards{display:flex; gap:8px; overflow-x:auto; scrollbar-width:thin; padding-bottom:4px}
   .card2{flex:none; width:118px; background:var(--navy2); border:3px solid var(--gold2); padding:6px; cursor:pointer}
   .card2.me{border-color:var(--gold)}
-  .card2 canvas{width:40px; height:40px; image-rendering:pixelated; display:block; margin:0 auto 4px}
+  .card2 .av{position:relative; width:40px; height:40px; margin:0 auto 4px}
+  .card2 canvas{width:40px; height:40px; image-rendering:pixelated; display:block}
+  .card2 .em2{position:absolute; right:-14px; top:-8px; font-size:18px; line-height:1; filter:drop-shadow(1px 1px 0 rgba(0,0,0,.6))}
   .card2 .n{font-size:17px; color:#fff; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .card2 .m{font-size:14px; color:#b9c3d6; text-align:center; line-height:1.1}
   .card2 .m b{color:var(--gold)}
@@ -378,9 +380,9 @@ function startGame(rejoin){
    MAP (Leaflet)
    ========================================================= */
 function initMap(){
-  map=L.map('map',{zoomControl:true, attributionControl:true, minZoom:5, maxZoom:19}).setView([34.72,135.55],10);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-    attribution:'&copy; OpenStreetMap contributors &copy; CARTO', subdomains:'abcd', maxZoom:19
+  map=L.map('map',{zoomControl:true, attributionControl:true, minZoom:5, maxZoom:21}).setView([34.72,135.55],10);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'&copy; OpenStreetMap contributors', maxZoom:21, maxNativeZoom:19
   }).addTo(map);
   map.zoomControl.setPosition('topright');
   // route
@@ -395,7 +397,7 @@ function initMap(){
     m.bindPopup(()=>{ const w=whenVisited(k); return `<div class="t">LANDMARK</div>${s.n}${w?`<br><span style="color:#6b5f45">${w}</span>`:""}${distFromMe(s.lat,s.lng)}<br><button class="go" onclick="pinTo('${k}')">I am here</button>`; });
   }
   map.on('dragstart',()=>setFollow(false));
-  document.getElementById('followBtn').onclick=()=>{ setFollow(true); if(me.lat!=null) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),16)); else setStatus("No position yet. Allow location access or use PIN."); };
+  document.getElementById('followBtn').onclick=()=>{ setFollow(true); if(me.lat!=null) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),18)); else setStatus("No position yet. Allow location access or use PIN."); };
   document.getElementById('tripBtn').onclick=()=>{ setFollow(false); map.flyToBounds(L.latLngBounds(Object.values(SPOTS).map(s=>[s.lat,s.lng])),{padding:[30,30]}); };
   document.getElementById('pinBtn').onclick=manualPin;
   document.getElementById('emojiBtn').onclick=toggleEmojiPanel;
@@ -455,7 +457,7 @@ function startLocation(){
     me.lat=pos.coords.latitude; me.lng=pos.coords.longitude; me.acc=pos.coords.accuracy; me.ts=Date.now();
     const dOsaka=haversine(me.lat,me.lng,SPOTS.osakaH.lat,SPOTS.osakaH.lng);
     setStatus(dOsaka<80 ? `Live GPS · ±${Math.round(me.acc)} m` : `Live GPS · you are <b>${fmtKm(dOsaka)}</b> from Osaka. Tap ALL to see the trip map.`);
-    if(firstFix){ firstFix=false; map.setView([me.lat,me.lng],dOsaka<80?16:12); }
+    if(firstFix){ firstFix=false; map.setView([me.lat,me.lng],dOsaka<80?18:12); }
     else if(follow) map.panTo([me.lat,me.lng],{animate:true});
     pushMe(); renderAll();
   },err=>{
@@ -528,7 +530,8 @@ function renderTray(){
     const c=document.createElement('canvas'); c.width=c.height=8; drawSprite(c.getContext('2d'),CHAR,charPal(p.av||0),0,0,1);
     const ago=Math.round((now-p.ts)/60000);
     const dist=(p.id!==me.id&&me.lat!=null)?`<b>${fmtKm(haversine(me.lat,me.lng,p.lat,p.lng))}</b> away`:"you";
-    d.appendChild(c); d.insertAdjacentHTML('beforeend',`<div class="n">${esc(p.name)}</div><div class="m">${dist}<br>${ago<1?"just now":ago+" min"}</div>`);
+    const av=document.createElement('div'); av.className='av'; av.appendChild(c); if(p.emoji) av.insertAdjacentHTML('beforeend',`<div class="em2">${esc(p.emoji)}</div>`);
+    d.appendChild(av); d.insertAdjacentHTML('beforeend',`<div class="n">${esc(p.name)}</div><div class="m">${dist}<br>${ago<1?"just now":ago+" min"}</div>`);
     d.onclick=()=>{ setFollow(false); map.flyTo([p.lat,p.lng],16); if(markers[p.id]) markers[p.id].openPopup(); };
     el.appendChild(d);
   });
