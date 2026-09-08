@@ -116,9 +116,14 @@
   .card2 .n{font-size:17px; color:#fff; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .card2 .m{font-size:14px; color:#b9c3d6; text-align:center; line-height:1.1}
   .card2 .m b{color:var(--gold)}
+  .card2 .m .wk{display:block; color:var(--gold); font-size:13px; margin-top:1px}
+  .card2 .m .wk.est{color:#8ea0bd}
 
-  /* a chat line / reaction echoes on the speaker's card; it overlays the distance
-     line rather than adding a row, so the tray never changes height mid-message */
+  /* a chat line / reaction echo on the speaker's card; it's absolutely positioned over
+     the bottom of the .m block, so today that means it covers the walk row (.wk), not
+     the distance line above it. It doesn't need to reserve any space of its own — the
+     .wk row always being present (walkHtml() falls back to an &nbsp; span rather than
+     an empty string) is what actually keeps every card the same height, echo or not. */
   .card2 .echo{position:absolute; left:4px; right:4px; bottom:4px; padding:2px 5px; background:var(--cream); color:var(--ink);
     border:2px solid var(--ink); font-size:14px; line-height:1.1; text-align:center; overflow-wrap:anywhere;
     display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; animation:cpopIn .18s steps(2)}
@@ -743,6 +748,29 @@ function playerIcon(p){
   return L.divIcon({className:'', html:`<div class="pm ${p.id===me.id?'me':''} ${stale?'stale':''}">${p.id===me.id?'<div class="spark"></div>':''}<canvas width="8" height="8" data-av="${p.av||0}"></canvas>${p.emoji?`<div class="em">${esc(p.emoji)}</div>`:''}<div class="lbl">${esc((p.name||'?').slice(0,10))}</div></div>`, iconSize:[32,44], iconAnchor:[16,32], popupAnchor:[0,-30]});
 }
 function paintCanvases(){ document.querySelectorAll('.pm canvas[data-av]').forEach(c=>{ if(c.dataset.done) return; drawSprite(c.getContext('2d'),charRows(+c.dataset.av),charPal(+c.dataset.av),0,0,1); c.dataset.done=1; }); }
+// Resolves players[id] live rather than closing over a stale player object — players is
+// replaced wholesale on every 6s poll, so a callback that captured p at bindPopup time
+// (the old inline arrow function did exactly that) would show a frozen ago/position for
+// as long as the popup stayed open. Doesn't need a walk*/WALK_ prefix per CLAUDE.md's rule
+// since it isn't part of the walking-distance feature itself, just the thing that grew a
+// line for it.
+function playerPopupHtml(id){
+  const p=players[id]; if(!p) return "";
+  const ago=Math.round((Date.now()-p.ts)/60000);
+  let walk="";
+  if(p.id!==me.id){
+    // A manual PIN counts as a real position here, same reasoning as raceInRange() and
+    // unlike huntWhereAmI() — this is a convenience number, not anti-cheat, so there is
+    // nothing to gate.
+    if(me.lat!=null&&p.lat!=null&&walkKeyPending===walkKey(id)){
+      walk=`<br><span style="color:#c9a24a">Getting walking route…</span>`;
+    } else {
+      const w=walkFor(id);
+      if(w) walk=`<br><span style="color:#c9a24a">Walk ${w.est?"~":""}${fmtKm(w.km)} · ${w.mins} min</span>`;
+    }
+  }
+  return `<div class="t">${p.id===me.id?"YOU":"PARTY"}</div>${esc(p.name)}<br><span style="color:#6b5f45">${p.manual?"pinned to a stop":"live GPS"} · ${ago<1?"just now":ago+" min ago"}</span>${p.id!==me.id?distFromMe(p.lat,p.lng):""}${walk}<br><span style="color:#6b5f45">${nearestSpot(p.lat,p.lng)}</span>`;
+}
 function renderMarkers(){
   const now=Date.now(); const live=new Set();
   Object.values(players).forEach(p=>{
@@ -750,7 +778,14 @@ function renderMarkers(){
     const ll=[p.lat,p.lng];
     if(!markers[p.id]){
       markers[p.id]=L.marker(ll,{icon:playerIcon(p),zIndexOffset:p.id===me.id?1000:500}).addTo(map);
-      markers[p.id].bindPopup(()=>{ const ago=Math.round((Date.now()-p.ts)/60000); return `<div class="t">${p.id===me.id?"YOU":"PARTY"}</div>${esc(p.name)}<br><span style="color:#6b5f45">${p.manual?"pinned to a stop":"live GPS"} · ${ago<1?"just now":ago+" min ago"}</span>${p.id!==me.id?distFromMe(p.lat,p.lng):""}<br><span style="color:#6b5f45">${nearestSpot(p.lat,p.lng)}</span>`; });
+      markers[p.id].bindPopup(()=>playerPopupHtml(p.id));
+      // p.id is stable so capturing it here is fine — everything each handler does re-resolves
+      // through players[id]/markers[id] rather than trusting anything else captured at this
+      // closure's creation time. The line belongs to the open popup, nothing more: it appears
+      // on open and clears on close (including a plain map-tap close, which Leaflet already
+      // routes through 'popupclose') — there is deliberately no separate toggle for it.
+      markers[p.id].on('popupopen',()=>walkTap(p.id));
+      markers[p.id].on('popupclose',()=>{ if(walkWant===p.id){ walkWant=null; walkClear(); } });
     } else { markers[p.id].setLatLng(ll); markers[p.id].setIcon(playerIcon(p)); }
   });
   for(const id in markers){ if(!live.has(id)){ map.removeLayer(markers[id]); delete markers[id]; } }
@@ -926,7 +961,7 @@ function renderTray(){
     const ago=Math.round((now-p.ts)/60000);
     const dist=(p.id!==me.id&&me.lat!=null)?`<b>${fmtKm(haversine(me.lat,me.lng,p.lat,p.lng))}</b> away`:"you";
     const av=document.createElement('div'); av.className='av'; av.appendChild(c); if(p.emoji) av.insertAdjacentHTML('beforeend',`<div class="em2">${esc(p.emoji)}</div>`);
-    d.appendChild(av); d.insertAdjacentHTML('beforeend',`<div class="n">${esc(p.name)}</div><div class="m">${dist}<br>${ago<1?"just now":ago+" min"}</div>${echo}`);
+    d.appendChild(av); d.insertAdjacentHTML('beforeend',`<div class="n">${esc(p.name)}</div><div class="m">${dist}<br>${ago<1?"just now":ago+" min"}${walkHtml(p.id)}</div>${echo}`);
     d.onclick=()=>{ setFollow(false); map.flyTo([p.lat,p.lng],16,FLY_OPTS); if(markers[p.id]) markers[p.id].openPopup(); };
     el.appendChild(d);
   });
@@ -942,6 +977,198 @@ function haversine(a,b,c,d){ const R=6371,toR=x=>x*Math.PI/180; const dl=toR(c-a
 function fmtKm(km){ return km<1?Math.round(km*1000)+" m":(km<100?km.toFixed(1)+" km":Math.round(km).toLocaleString()+" km"); }
 function nearestSpot(lat,lng){ if(lat==null) return "—"; let best=null,bd=1e9; for(const k in SPOTS){ const d=haversine(lat,lng,SPOTS[k].lat,SPOTS[k].lng); if(d<bd){bd=d;best=SPOTS[k];} } if(bd>60) return "Outside Kansai"; return bd<0.4?"At "+best.n:`${fmtKm(bd)} from ${best.n}`; }
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* =========================================================
+   WALKING DISTANCE (estimate + routed)
+
+   Two tiers. Tier 1 is pure haversine math and runs everywhere, including
+   inside renderTray()/renderMarkers() — both repaint roughly once a second
+   while walking (every 6s poll, every GPS fix), so anything they call has
+   to be safe to recompute constantly. Tier 2 is one real pedestrian-routed
+   call to a free public Valhalla instance (the same one tools/build-route.py
+   already uses to build the trip ribbon), fired only from a marker's
+   popupopen handler — never from a render path — cached, deduped against
+   an in-flight request, and aborted-and-superseded rather than left to
+   race a newer tap. That restraint (one call per popup-open, cached, never
+   in a loop) is what makes it acceptable to hit someone else's server from
+   the client at all. Map data (c) OpenStreetMap contributors, ODbL 1.0.
+   ========================================================= */
+const WALK_DETOUR=1.3, WALK_KMH=4.8, WALK_MAX_KM=5, WALK_TIMEOUT_MS=8000, WALK_CACHE_MAX=40, WALK_FAIL_TTL=3*60*1000;
+const WALK_URL="https://valhalla1.openstreetmap.de/route";
+const walkCache=new Map();   // walkKey() -> {km,mins,pts,est:false}, routed results only
+const walkFail=new Map();    // walkKey() -> Date.now() when it failed/timed out (see walkFailHas)
+let walkWant=null, walkKeyPending=null, walkAbort=null, walkLayer=null;
+
+// Every coordinate rounded to 4dp (~11m) before joining — the cache (and walkFail) self
+// -invalidate the moment either person actually moves, and repeat taps on a stationary
+// pair (open a card, close it, open it again) cost nothing. Callers that might have an
+// unset me/players fix must check that before calling this — it assumes valid numbers.
+function walkKey(id){ const p=players[id]; return [me.lat,me.lng,p.lat,p.lng].map(x=>(+x).toFixed(4)).join(','); }
+function walkMins(km){ return Math.max(1,Math.round(km/WALK_KMH*60)); }
+// The public instance is free and community-run, so backing off a key that just failed
+// or timed out is the right way to avoid hammering it — but backing off *forever* is not:
+// keys are coordinates rounded to 4dp, so two people sitting still in the same restaurant
+// produce a stable key, and one bad response would otherwise silently kill routing for
+// that pair for the rest of the session. Deletes an expired entry as a side effect of
+// checking it, so the very next tap after WALK_FAIL_TTL elapses gets a clean retry.
+function walkFailHas(key){
+  const t=walkFail.get(key);
+  if(t==null) return false;
+  if(Date.now()-t>WALK_FAIL_TTL){ walkFail.delete(key); return false; }
+  return true;
+}
+// The offline estimate: straight-line distance inflated by a flat urban detour factor,
+// walked at an average pace. Capped at WALK_MAX_KM because a player in Osaka and one in
+// Kyoto are ~40km apart as the crow flies, and "8h 20m walk" is noise, not information —
+// nobody is walking that, so showing nothing is more honest than showing a number.
+function walkEstimate(id){
+  if(id===me.id||me.lat==null) return null;
+  const p=players[id]; if(!p||p.lat==null) return null;
+  const straight=haversine(me.lat,me.lng,p.lat,p.lng);
+  if(straight>WALK_MAX_KM) return null;
+  const km=straight*WALK_DETOUR;
+  return {km, mins:walkMins(km), est:true};
+}
+// Cache-first lookup used by both the tray card and the popup line. Guards on me.lat/the
+// player before ever touching walkKey(), so a missing fix falls through to walkEstimate()'s
+// own null instead of throwing on toFixed(null) inside walkKey().
+function walkFor(id){
+  const p=players[id];
+  if(me.lat==null||!p||p.lat==null) return walkEstimate(id);
+  const k=walkKey(id);
+  return walkCache.has(k)?walkCache.get(k):walkEstimate(id);
+}
+function walkText(w){ return `🚶 ${w.est?"~":""}${fmtKm(w.km)} · ${w.mins} min`; }
+// Always returns a .wk span, even with nothing to show (self, no fix yet, or beyond
+// WALK_MAX_KM) — .wk is display:block, so a card that sometimes had three rows and
+// sometimes two would resize on every render as a pair's straight-line distance crosses
+// the 5km cap. trackChrome()'s ResizeObserver would read that as a genuine tray resize
+// and reflow #sidebtns/#chatPanel/#status around it — exactly the failure mode "overlay
+// chrome is measured, not hardcoded" exists to prevent. A reserved, sometimes-empty row
+// keeps every card's height constant regardless of what walkFor() returns.
+function walkHtml(id){ const w=walkFor(id); if(!w) return `<span class="wk">&nbsp;</span>`; return `<span class="wk${w.est?" est":""}">${walkText(w)}</span>`; }
+// Standard Google encoded-polyline algorithm at precision 6 (divisor 1e6). Valhalla's
+// `shape` is polyline6, not the far more common polyline5 — decoding at 1e5 would silently
+// yield points off by roughly ten degrees rather than throwing. Mirrors
+// tools/build-route.py's decode_polyline6() exactly, one language over.
+function walkDecodePolyline6(str){
+  const coords=[]; let index=0,lat=0,lng=0;
+  while(index<str.length){
+    for(const f of ['lat','lng']){
+      let shift=0,result=0,b;
+      do{ b=str.charCodeAt(index++)-63; result|=(b&0x1f)<<shift; shift+=5; }while(b>=0x20);
+      const delta=(result&1)?~(result>>1):(result>>1);
+      if(f==='lat') lat+=delta; else lng+=delta;
+    }
+    coords.push([lat/1e6,lng/1e6]);
+  }
+  return coords;
+}
+function walkClear(){ if(walkLayer){ map.removeLayer(walkLayer); walkLayer=null; } }
+// Casing+core deliberately echoes the trip ribbon's cream-and-red stack from initMap(), but
+// with no gold overlay on top: gold is what marks a line as *the* itinerary route there, and
+// this line means "your walk to one person right now" — giving it the same gold would make
+// it look like it belongs to a route it has nothing to do with. interactive:false for the
+// same reason as the ribbon's own strokes: no handlers, so hit-testing along the line is
+// pure cost. L.featureGroup (not layerGroup) because walkFetch needs .getBounds() on the
+// result to decide whether to fly the map to it.
+function walkDraw(pts){
+  walkClear();
+  const CASE={color:'#f3e8cf',weight:8,opacity:.9,lineCap:'round',lineJoin:'round',interactive:false};
+  const CORE={color:'#c8442b',weight:4,opacity:1,lineCap:'round',lineJoin:'round',interactive:false};
+  walkLayer=L.featureGroup([L.polyline(pts,CASE),L.polyline(pts,CORE)]).addTo(map);
+}
+// The only place that fetches. Order matters: the cache is checked before walkFail, so a
+// route already in hand is always honoured and redrawn even for a key that's since gone
+// into backoff, and walkWant is claimed *before* the in-flight check can bail out, so a
+// popup that gets closed and reopened while its own fetch is still running re-claims that
+// fetch rather than stranding it (see the comments inline below for why each matters).
+function walkTap(id){
+  const est=walkEstimate(id); if(!est) return;
+  const key=walkKey(id);
+  if(walkCache.has(key)){
+    // A route already in hand must be honoured even if this key later landed in
+    // walkFail — checking the cache first means we never even have to ask.
+    if(walkWant!==id){ walkWant=id; walkDraw(walkCache.get(key).pts); }
+    return;
+  }
+  if(walkFailHas(key)) return;
+  // Claim the request before checking whether one is already in flight for it — a
+  // reopen has to re-claim the fetch that's already running for this id, not
+  // early-return past it and leave walkWant wherever the intervening popupclose reset
+  // it to (null, or another player's id) while that fetch is still on the wire.
+  walkWant=id;
+  if(walkKeyPending===key) return;
+  if(walkAbort) walkAbort.abort(); // a fresh tap supersedes an older one — never let two routes race to draw
+  walkFetch(id,key);
+  // walkFetch sets walkKeyPending synchronously before its first await, and Leaflet
+  // evaluates popup content in onAdd -> update(), which runs before it ever fires
+  // popupopen — so without this refresh here, the "Getting walking route…" line in
+  // playerPopupHtml() is dead code that never actually renders on a first open.
+  walkRefresh(id);
+}
+async function walkFetch(id,key){
+  const p=players[id]; if(!p){ return; }
+  walkKeyPending=key;
+  const ac=new AbortController(); walkAbort=ac;
+  const timer=setTimeout(()=>ac.abort(),WALK_TIMEOUT_MS);
+  let result=null;
+  try{
+    const body={locations:[{lat:me.lat,lon:me.lng},{lat:p.lat,lon:p.lng}],costing:"pedestrian",directions_options:{units:"kilometers",directions_type:"none"}};
+    const r=await fetch(WALK_URL+"?json="+encodeURIComponent(JSON.stringify(body)),{signal:ac.signal});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    const km=j.trip.summary.length;
+    const mins=Math.max(1,Math.round(j.trip.summary.time/60));
+    const pts=[]; for(const leg of j.trip.legs) pts.push(...walkDecodePolyline6(leg.shape));
+    result={km,mins,pts,est:false};
+    walkCache.set(key,result);
+    if(walkCache.size>WALK_CACHE_MAX) walkCache.delete(walkCache.keys().next().value);
+  }catch(e){
+    // An abort caused by a *newer* tap (walkAbort no longer === ac, because that tap's
+    // walkTap() already installed its own controller) must not poison walkFail for this
+    // key — that would block the very retry the newer tap is about to make. A timeout's
+    // own abort leaves walkAbort===ac, since nothing else has replaced it, so it still
+    // counts as a real failure.
+    if(!(e.name==='AbortError'&&walkAbort!==ac)){
+      console.warn('walk route failed',e);
+      walkFail.set(key,Date.now());
+      if(walkFail.size>WALK_CACHE_MAX) walkFail.delete(walkFail.keys().next().value);
+    }
+  }finally{
+    clearTimeout(timer);
+    if(walkAbort===ac) walkAbort=null;
+    if(walkKeyPending===key) walkKeyPending=null;
+  }
+  // Draw/fly/refresh happen after the try/catch/finally has fully settled, not inside the
+  // try — narrowing the try to fetch+parse+cache means a throw from getBounds()/
+  // flyToBounds()/renderTray() (post-success work) can never be mistaken for a routing
+  // failure and add an already-successfully-cached key to walkFail. Guarded on
+  // walkWant===id since a newer tap may have taken over while this one was in flight.
+  // walkKeyPending is already clear by the time we get here — the finally above already
+  // ran — so no separate clear is needed before walkRefresh() picks up the routed number.
+  if(walkWant!==id) return;
+  if(result){
+    walkDraw(result.pts);
+    if(!map.getBounds().contains(walkLayer.getBounds())){
+      setFollow(false); // an in-place fly must not be yanked back by the next GPS fix's panTo — same reason tripBtn/the tray card tap/the .fly buttons all disable follow before flying
+      map.flyToBounds(walkLayer.getBounds(),{...FLY_OPTS,padding:[40,40]});
+    }
+  }
+  // Refreshed whether or not a route came back: on a failure or a timeout there is nothing
+  // to draw, but the popup is still sitting on "Getting walking route…" and would stay
+  // there for the rest of its open lifetime — the estimate has to come back in its place.
+  walkRefresh(id);
+  renderTray();
+}
+// Called once the routed result lands, since the popup was already open (and showing the
+// "Getting walking route…" line) before the fetch resolved. Passed as a function, not as
+// playerPopupHtml(id)'s already-evaluated string — Leaflet's Popup only re-evaluates string
+// vs. function content on the *next* open when it was bound as a function (bindPopup's own
+// callback), so handing it a frozen string here would un-live the popup for every future
+// open of this player: the "min ago" line would stop ticking and a stale walk line would
+// stick around even if the pair later moved out of routing range.
+function walkRefresh(id){ const mk=markers[id]; if(mk&&mk.isPopupOpen()) mk.setPopupContent(()=>playerPopupHtml(id)); }
 
 /* =========================================================
    DAY / NEXT STOP
