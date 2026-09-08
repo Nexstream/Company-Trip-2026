@@ -836,15 +836,19 @@ function closeGames(){
 if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
 </script>
 
-<!-- pixel art, handbook copy and game modules; all resolved at click time -->
-<script src="art.js"></script>
-<script src="checklist.js"></script>
-<script src="handbook.js"></script>
-<script src="game-hunt.js"></script>
-<script src="game-race.js"></script>
-<script src="game-trivia.js"></script>
-<script src="game-arcade.js"></script>
-<script src="game-sushi.js"></script>
-<script src="chat.js"></script>
+<!-- pixel art, handbook copy and game modules; all resolved at click time.
+     The ?v= stamp is a cache-buster: GitHub Pages and mobile Safari will happily
+     keep serving a stale module after index.html has updated, which looks exactly
+     like "the new feature didn't ship". Bump it on every deploy that changes a
+     module. -->
+<script src="art.js?v=20260908c"></script>
+<script src="checklist.js?v=20260908c"></script>
+<script src="handbook.js?v=20260908c"></script>
+<script src="game-hunt.js?v=20260908c"></script>
+<script src="game-race.js?v=20260908c"></script>
+<script src="game-trivia.js?v=20260908c"></script>
+<script src="game-arcade.js?v=20260908c"></script>
+<script src="game-sushi.js?v=20260908c"></script>
+<script src="chat.js?v=20260908c"></script>
 </body>
 </html>
