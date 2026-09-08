@@ -4,6 +4,7 @@
      - a speech balloon above the speaker's marker on the map
      - a toast in #chatPops, which is fixed and above the games /
        handbook overlays, so a message is never missed
+     - an echo on the speaker's card in the NEARBY tray (trayEchoSay, index.html)
    Storage: chat_messages (see supabase-chat.sql). Polled like reactions.
    One shared scope — every name here is prefixed chat* / CHAT_.
    ========================================================= */
@@ -107,6 +108,8 @@ async function chatSend(text){
   const m={ id:'tmp'+Date.now()+Math.random().toString(36).slice(2), player_id:me.id, player_name:me.name,
             av:me.av||0, body, lat:me.lat??null, lng:me.lng??null, ts:Date.now(), pending:true };
   chatMsgs.push(m); chatTrim(); chatRender();
+  // our own line never comes through chatPop(), so echo it on our tray card here
+  if(typeof trayEchoSay==='function') trayEchoSay(me.id,body);
   await chatPost(m);
 }
 
@@ -157,6 +160,7 @@ function chatClock(ts){
 
 /* toast bubble — sits over the map and over the games / handbook overlays */
 function chatPop(m){
+  if(typeof trayEchoSay==='function') trayEchoSay(m.player_id,m.body);   // and on the speaker's NEARBY card
   const wrap=document.getElementById('chatPops'); if(!wrap) return;
   const d=document.createElement('div');
   d.className='cpop';
