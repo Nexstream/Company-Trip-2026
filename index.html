@@ -29,10 +29,11 @@
   .field label{display:block; font-size:11px; color:var(--gold); margin-bottom:8px; font-family:'Press Start 2P',monospace}
   .field input{width:100%; padding:10px 12px; font-family:'VT323','Courier New',monospace; font-size:24px; background:var(--cream); color:var(--ink); border:4px solid var(--gold2); outline:none}
   .field input:focus{border-color:var(--red)}
-  .avatars{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:8px}
+  .avatars{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:8px; margin-bottom:10px}
   .avatars button{min-width:0; background:var(--navy2); border:3px solid var(--gold2); padding:4px; aspect-ratio:1; display:flex; align-items:center; justify-content:center}
   .avatars button.on{border-color:var(--red); background:#2a3a5a}
   .avatars canvas{display:block; width:100%; height:auto; aspect-ratio:1; image-rendering:pixelated}
+  .avrow-h{font-size:11px; color:var(--gold); margin-bottom:8px; font-family:'Press Start 2P',monospace}
   @media (max-width:420px){ .avatars{grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px} .avatars button{padding:8px} }
   .btn{display:inline-block; padding:12px 18px; border:4px solid var(--gold2); background:var(--red); color:#fff; font-family:'Press Start 2P',monospace; font-size:12px; box-shadow:4px 4px 0 var(--navy2)}
   .btn:active{transform:translate(2px,2px); box-shadow:2px 2px 0 var(--navy2)}
@@ -67,7 +68,9 @@
   #status.hide{display:none}
 
   /* right side buttons */
-  #sidebtns{position:absolute; right:10px; bottom:calc(var(--trayh,140px) + 10px); z-index:500; display:flex; flex-direction:column; gap:8px}
+  #sidebtns{position:absolute; right:10px; bottom:calc(var(--trayh,140px) + 10px); z-index:500; display:flex; flex-direction:column; gap:8px;
+    max-height:calc(100vh - var(--hudh,60px) - var(--trayh,140px) - 24px); overflow-y:auto; scrollbar-width:none}
+  #sidebtns::-webkit-scrollbar{display:none}
   #sidebtns .rb{position:relative; width:48px; height:48px; background:var(--navy); border:3px solid var(--gold); color:var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Press Start 2P',monospace; font-size:9px; box-shadow:3px 3px 0 rgba(0,0,0,.5)}
   #sidebtns .rb.on{background:var(--red); color:#fff}
 
@@ -118,6 +121,11 @@
   #emojiPanel .eg button{background:var(--navy2); border:2px solid var(--gold2); font-size:22px; padding:6px 0; line-height:1}
   #emojiPanel .eg button.on{border-color:var(--red); background:#2a3a5a}
   #emojiPanel .eg button.clear{font-family:'Press Start 2P',monospace; font-size:7px; color:#b9c3d6}
+  #outfitPanel{position:absolute; right:66px; bottom:calc(var(--trayh,140px) + 10px); z-index:600; display:none; width:min(300px,calc(100vw - 90px)); padding:10px; background:rgba(27,42,68,.97); border:3px solid var(--gold); box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+  #outfitPanel.on{display:block}
+  #outfitPanel{max-height:calc(100vh - var(--hudh,60px) - var(--trayh,140px) - 40px); overflow-y:auto}
+  #outfitPanel .eh{font-family:'Press Start 2P',monospace; font-size:8px; color:var(--gold); margin:4px 0 6px}
+  #outfitPanel .eh span{color:#b9c3d6; font-family:'VT323','Courier New',monospace; font-size:15px; margin-left:6px}
   .lm{width:28px; height:28px; image-rendering:pixelated; filter:drop-shadow(2px 2px 0 rgba(0,0,0,.45))}
   .lm.done{opacity:.55}
   .leaflet-popup-content-wrapper{border-radius:0; background:var(--cream); color:var(--ink); border:3px solid var(--ink); font-family:'VT323','Courier New',monospace; font-size:19px; box-shadow:4px 4px 0 rgba(0,0,0,.4)}
@@ -172,12 +180,12 @@
     #hud .left{gap:8px}
     #hud .btn{font-size:8px; padding:7px 9px}
     #status{font-size:15px; padding:5px 8px}
-    #chatPanel,#emojiPanel{right:62px}
+    #chatPanel,#emojiPanel,#outfitPanel{right:62px}
   }
   @media (max-height:720px){
     #sidebtns{gap:6px}
     #sidebtns .rb{width:42px; height:42px; font-size:8px}
-    #chatPanel,#emojiPanel{right:58px}
+    #chatPanel,#emojiPanel,#outfitPanel{right:58px}
   }
 
   /* handbook */
@@ -235,7 +243,7 @@
     <h1 class="px">NEXSTREAM<br>KANSAI QUEST</h1>
     <div class="sub">29 Sep – 4 Oct 2026 · Kyoto · Kobe · Nara · Osaka<br>Find your party. Read the handbook. Don't miss the bus.</div>
     <div class="field"><label>Your name</label><input id="name" maxlength="16" placeholder="e.g. Diviya" autocomplete="off"></div>
-    <div class="field"><label>Choose your traveller</label><div class="avatars" id="avatars"></div></div>
+    <div class="field"><label>Choose your look</label><div id="avatars"></div></div>
     <button class="btn" id="start">Start journey</button>
     <div class="note">Your position is shared with <b>everyone using this game</b> so the party can find each other. If location access is off, you can pin yourself to an itinerary stop instead.</div>
   </div>
@@ -258,6 +266,7 @@
     <button class="rb" id="pinBtn" title="Pin to a stop">PIN</button>
     <button class="rb" id="chatBtn" title="Party chat" style="font-size:18px">💬<span class="badge" id="chatBadge"></span></button>
     <button class="rb" id="emojiBtn" title="Status & reactions" style="font-size:18px">😊</button>
+    <button class="rb" id="outfitBtn" title="Change your outfit" style="font-size:18px">👕</button>
     <button class="rb" id="leaveBtn" title="Leave party">EXIT</button>
   </div>
   <div id="emojiPanel" class="frame">
@@ -265,6 +274,10 @@
     <div class="eg" id="statusGrid"></div>
     <div class="eh">REACT <span>pops for everyone, then fades</span></div>
     <div class="eg" id="reactGrid"></div>
+  </div>
+  <div id="outfitPanel" class="frame">
+    <div class="eh">OUTFIT <span>everyone sees this</span></div>
+    <div id="outfitGrid"></div>
   </div>
   <div id="chatPanel" class="frame">
     <div class="ch"><span>PARTY CHAT</span><button type="button" id="chatClose" title="Close">×</button></div>
@@ -457,10 +470,14 @@ const DAYS = [
 /* =========================================================
    PIXEL SPRITES
    ========================================================= */
-const AV_COLORS = [
-  {H:"#2b1d12",C:"#c8442b"},{H:"#f2c14e",C:"#3f6f9c"},{H:"#7a3b1e",C:"#5ad36a"},{H:"#111111",C:"#c9a24a"},
-  {H:"#d94f8a",C:"#ffffff"},{H:"#9b59b6",C:"#ff9f43"},{H:"#4b86c4",C:"#e74c3c"},{H:"#e0e0e0",C:"#2c3e50"},
-];
+// av is one int, 0-63: av = hair*8 + cloth (avCode/avHair/avCloth below). Legacy av
+// values 0-7 (written before this two-axis split) all decode to hair 0 with varying
+// clothes — accepted cosmetic drift, not worth a data migration.
+const AV_HAIR  = ["#2b1d12","#f2c14e","#7a3b1e","#111111","#d94f8a","#9b59b6","#4b86c4","#e0e0e0"];
+const AV_CLOTH = ["#c8442b","#3f6f9c","#5ad36a","#c9a24a","#ffffff","#ff9f43","#e74c3c","#2c3e50"];
+function avHair(av){ return Math.floor((+av||0)/AV_CLOTH.length) % AV_HAIR.length; }
+function avCloth(av){ return (+av||0) % AV_CLOTH.length; }
+function avCode(h,c){ return h*AV_CLOTH.length + c; }
 const CHAR = ["..HHHH..",".HHHHHH.",".HSSSSH.",".SESSES.","..SSSS..",".CCCCCC.","CCCCCCCC",".LL..LL."];
 const ICONS = {
   torii:  ["RRRRRRRR",".R.RR.R.","..R..R..",".RRRRRR.","..R..R..","..R..R..","..R..R..","..R..R.."],
@@ -485,10 +502,9 @@ function drawSprite(ctx, rows, pal, x, y, s){
     const ch=rows[r][c]; if(ch==='.') continue; ctx.fillStyle=pal[ch]||"#000"; ctx.fillRect(x+c*s,y+r*s,s,s);
   }
 }
-function charPal(i){ const a=AV_COLORS[i%AV_COLORS.length]; return {H:a.H,S:"#f1c9a5",E:"#1b2a44",C:a.C,L:"#2a2418"}; }
+function charPal(av){ return {H:AV_HAIR[avHair(av)],S:"#f1c9a5",E:"#1b2a44",C:AV_CLOTH[avCloth(av)],L:"#2a2418"}; }
 function spriteURL(rows,pal){ const c=document.createElement('canvas'); c.width=c.height=8; drawSprite(c.getContext('2d'),rows,pal,0,0,1); return c.toDataURL(); }
 const ICON_URL={}; for(const k in ICONS) ICON_URL[k]=spriteURL(ICONS[k],ICON_PAL);
-const CHAR_URL=AV_COLORS.map((_,i)=>spriteURL(CHAR,charPal(i)));
 
 
 /* =========================================================
@@ -507,14 +523,38 @@ let players={}, markers={}, watchId=null, selectedAv=0, follow=true, map, accCir
 /* =========================================================
    TITLE
    ========================================================= */
+// Shared two-row (hair/clothes) avatar picker, used by the title screen and the
+// in-game OUTFIT panel. Each button shows the full CHAR sprite so no separate
+// preview widget is needed. root is cleared first, so this is safely re-entrant.
+function buildAvPicker(root, av, onPick){
+  root.innerHTML="";
+  const rowHair=document.createElement('div'), rowCloth=document.createElement('div');
+  const lblHair=document.createElement('div'), lblCloth=document.createElement('div');
+  lblHair.className=lblCloth.className='avrow-h'; lblHair.textContent='HAIR'; lblCloth.textContent='CLOTHES';
+  const gridHair=document.createElement('div'), gridCloth=document.createElement('div');
+  gridHair.className=gridCloth.className='avatars';
+  AV_HAIR.forEach((_,i)=>{
+    const code=avCode(i,avCloth(av));
+    const b=document.createElement('button'); b.type="button"; b.title="Hair "+(i+1);
+    const c=document.createElement('canvas'); c.width=32;c.height=32; drawSprite(c.getContext('2d'),CHAR,charPal(code),0,0,4);
+    b.appendChild(c); if(i===avHair(av)) b.classList.add('on');
+    b.onclick=()=>onPick(code);
+    gridHair.appendChild(b);
+  });
+  AV_CLOTH.forEach((_,i)=>{
+    const code=avCode(avHair(av),i);
+    const b=document.createElement('button'); b.type="button"; b.title="Clothes "+(i+1);
+    const c=document.createElement('canvas'); c.width=32;c.height=32; drawSprite(c.getContext('2d'),CHAR,charPal(code),0,0,4);
+    b.appendChild(c); if(i===avCloth(av)) b.classList.add('on');
+    b.onclick=()=>onPick(code);
+    gridCloth.appendChild(b);
+  });
+  rowHair.append(lblHair,gridHair); rowCloth.append(lblCloth,gridCloth);
+  root.append(rowHair,rowCloth);
+}
 const avWrap=document.getElementById('avatars');
-AV_COLORS.forEach((_,i)=>{
-  const b=document.createElement('button'); b.type="button"; b.title="Traveller "+(i+1);
-  const c=document.createElement('canvas'); c.width=32;c.height=32; drawSprite(c.getContext('2d'),CHAR,charPal(i),0,0,4);
-  b.appendChild(c); if(i===0) b.classList.add('on');
-  b.onclick=()=>{ selectedAv=i; [...avWrap.children].forEach(x=>x.classList.remove('on')); b.classList.add('on'); };
-  avWrap.appendChild(b);
-});
+function buildTitlePicker(){ buildAvPicker(avWrap, selectedAv, av=>{ selectedAv=av; buildTitlePicker(); }); }
+buildTitlePicker();
 document.getElementById('start').onclick=()=>startGame();
 document.getElementById('name').addEventListener('keydown',e=>{ if(e.key==='Enter') startGame(); });
 
@@ -574,8 +614,10 @@ function initMap(){
   document.getElementById('tripBtn').onclick=()=>{ setFollow(false); map.flyToBounds(L.latLngBounds(Object.values(SPOTS).map(s=>[s.lat,s.lng])),{padding:[30,30]}); };
   document.getElementById('pinBtn').onclick=manualPin;
   document.getElementById('emojiBtn').onclick=toggleEmojiPanel;
-  map.on('click dragstart',()=>closeEmojiPanel());
+  document.getElementById('outfitBtn').onclick=toggleOutfitPanel;
+  map.on('click dragstart',()=>{ closeEmojiPanel(); closeOutfitPanel(); });
   buildEmojiPanel();
+  buildOutfitPanel();
   document.getElementById('leaveBtn').onclick=leave;
   setTimeout(()=>map.invalidateSize(),50);
 }
@@ -667,8 +709,27 @@ function buildEmojiPanel(){
   const rg=document.getElementById('reactGrid'); rg.innerHTML="";
   REACT_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.type="button"; b.textContent=e; b.onclick=()=>{ sendReaction(e); closeEmojiPanel(); }; rg.appendChild(b); });
 }
-function toggleEmojiPanel(){ const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
+function toggleEmojiPanel(){ closeOutfitPanel(); const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
 function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); document.getElementById('emojiBtn').classList.remove('on'); }
+
+/* =========================================================
+   OUTFIT: change hair/clothes after joining
+   ========================================================= */
+function buildOutfitPanel(){
+  buildAvPicker(document.getElementById('outfitGrid'), me.av, av=>{
+    me.av=av; saveMe();
+    // Instant local feedback: pushMe() only syncs players[] after its await, and
+    // returns early when me.lat==null. Merge just av — spreading all of me would
+    // copy a null lat over the server row and drop your own marker until the next poll.
+    if(players[me.id]) players[me.id]={...players[me.id],av:me.av};
+    pushMe(); renderAll(); buildOutfitPanel();
+  });
+}
+function toggleOutfitPanel(){
+  closeEmojiPanel(); if(typeof chatSetOpen==='function') chatSetOpen(false);
+  const p=document.getElementById('outfitPanel'); p.classList.toggle('on'); document.getElementById('outfitBtn').classList.toggle('on',p.classList.contains('on'));
+}
+function closeOutfitPanel(){ document.getElementById('outfitPanel').classList.remove('on'); document.getElementById('outfitBtn').classList.remove('on'); }
 async function sendReaction(emoji){
   if(me.lat==null){ setStatus("No position yet — allow location or use <b>PIN</b> before reacting."); return; }
   const r={player_id:me.id,emoji,lat:me.lat,lng:me.lng,ts:Date.now()};
@@ -841,14 +902,14 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      keep serving a stale module after index.html has updated, which looks exactly
      like "the new feature didn't ship". Bump it on every deploy that changes a
      module. -->
-<script src="art.js?v=20260908d"></script>
-<script src="checklist.js?v=20260908d"></script>
-<script src="handbook.js?v=20260908d"></script>
-<script src="game-hunt.js?v=20260908d"></script>
-<script src="game-race.js?v=20260908d"></script>
-<script src="game-trivia.js?v=20260908d"></script>
-<script src="game-arcade.js?v=20260908d"></script>
-<script src="game-sushi.js?v=20260908d"></script>
-<script src="chat.js?v=20260908d"></script>
+<script src="art.js?v=20260908e"></script>
+<script src="checklist.js?v=20260908e"></script>
+<script src="handbook.js?v=20260908e"></script>
+<script src="game-hunt.js?v=20260908e"></script>
+<script src="game-race.js?v=20260908e"></script>
+<script src="game-trivia.js?v=20260908e"></script>
+<script src="game-arcade.js?v=20260908e"></script>
+<script src="game-sushi.js?v=20260908e"></script>
+<script src="chat.js?v=20260908e"></script>
 </body>
 </html>
