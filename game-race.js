@@ -236,7 +236,7 @@ function raceWireRows(){
       const s = SPOTS[b.dataset.fly]; if(!s) return;
       if(typeof closeGames==='function') closeGames();
       setFollow(false);
-      map.flyTo([s.lat,s.lng],17);
+      map.flyTo([s.lat,s.lng],17,FLY_OPTS);
     };
   });
 }
