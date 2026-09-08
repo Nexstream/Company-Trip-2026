@@ -31,6 +31,7 @@ const HUNT_CHALLENGES = [
   {id:"lionroar", em:"🦁", t:"Roar at the giant lion", d:"Face off with the giant lion-head stage at Namba Yasaka Shrine.", pts:10},
   {id:"escalatorswitch", em:"🚶", t:"Switch sides like a local", d:"Notice and correctly follow the escalator-standing side in both Kyoto and Osaka.", pts:20},
 ];
+const HUNT_SIGN_TTL = 60*60*1000;   // proof photos are served on 1h signed URLs
 const HUNT_BY_ID = Object.fromEntries(HUNT_CHALLENGES.map(c=>[c.id,c]));
 const HUNT_TOTAL_POSSIBLE = HUNT_CHALLENGES.reduce((s,c)=>s+c.pts,0);
 
@@ -42,6 +43,8 @@ let huntLoadFailed = false;
 let huntProofInput = null;    // one shared hidden <input type=file>
 let huntProofFor = null;      // challenge waiting on that picker
 let huntBusyNote = {};        // target id -> "Shrinking…" / "Uploading…"
+let huntSigned = {};          // proof path -> {url, exp} short-lived signed URLs
+let huntSigning = false;
 
 function huntTotalsByPlayer(){
   const map = {};
@@ -171,14 +174,45 @@ function huntWhoHtml(target){
   return faces+extra;
 }
 
-/* Thumbnails of everyone's photo proof for this challenge. */
+/* Thumbnails of everyone's photo proof for this challenge. The bucket is
+   private, so the <img> starts blank and huntSignProofs() fills in a signed
+   URL once it has one. */
 function huntProofsHtml(target){
-  const withPhoto = huntClaimsFor(target).filter(c=>c.proof_url);
+  const withPhoto = huntClaimsFor(target).filter(c=>c.proof_path);
   if(!withPhoto.length) return '';
-  return `<div class="hunt-proofs">`+withPhoto.map(c=>
-    `<button type="button" class="hunt-viewproof${c.player_id===me.id?' hunt-mineproof':''}" data-url="${esc(c.proof_url)}" data-who="${esc(c.player_name||'?')}" title="${esc(c.player_name||'?')}">
-       <img src="${esc(c.proof_url)}" alt="Proof from ${esc(c.player_name||'?')}" loading="lazy">
-     </button>`).join('')+`</div>`;
+  return `<div class="hunt-proofs">`+withPhoto.map(c=>{
+    const src = huntSignedUrl(c.proof_path);
+    return `<button type="button" class="hunt-viewproof${c.player_id===me.id?' hunt-mineproof':''}" data-path="${esc(c.proof_path)}" data-who="${esc(c.player_name||'?')}" title="${esc(c.player_name||'?')}">
+       <img data-path="${esc(c.proof_path)}"${src?` src="${esc(src)}"`:''} alt="Proof from ${esc(c.player_name||'?')}" loading="lazy">
+     </button>`;
+  }).join('')+`</div>`;
+}
+
+function huntSignedUrl(path){
+  const hit = huntSigned[path];
+  return (hit && hit.exp > Date.now()) ? hit.url : null;
+}
+
+/* Sign whatever is on screen and has no URL yet, in one request. */
+async function huntSignProofs(){
+  if(huntSigning) return;
+  const root = document.getElementById('gamePage');
+  if(!root) return;
+  const need = [...new Set([...root.querySelectorAll('.hunt-proofs img[data-path]')]
+    .filter(img=>!img.getAttribute('src'))
+    .map(img=>img.dataset.path))];
+  if(!need.length) return;
+  huntSigning = true;
+  try{
+    const urls = await sbSign('proofs', need, HUNT_SIGN_TTL/1000);
+    const exp = Date.now() + HUNT_SIGN_TTL - 60000;   // re-sign a minute early
+    for(const path in urls) huntSigned[path] = {url:urls[path], exp};
+    root.querySelectorAll('.hunt-proofs img[data-path]').forEach(img=>{
+      const u = urls[img.dataset.path];
+      if(u && !img.getAttribute('src')) img.src = u;
+    });
+  }catch(e){ console.warn('hunt sign', e); }
+  huntSigning = false;
 }
 
 function huntRenderRow(ch){
@@ -200,7 +234,7 @@ function huntRenderRow(ch){
         </div>
         <div class="hunt-who">${huntWhoHtml(ch.id)}</div>
         ${huntProofsHtml(ch.id)}
-        ${mine&&!mine.proof_url?'<div class="hunt-note">Claimed before photos were required — no proof on file.</div>':''}
+        ${mine&&!mine.proof_path?'<div class="hunt-note">Claimed before photos were required — no proof on file.</div>':''}
         ${err?`<div class="hunt-err">${esc(err)}</div>`:''}
       </div>
     </div>
@@ -254,13 +288,13 @@ async function huntClaim(ch, file){
   huntBusyNote[ch.id] = 'SHRINKING';
   huntRenderAll(); huntWireList();
 
-  let proofUrl;
+  let proofPath;
   try{
     const blob = await shrinkImage(file);
     huntBusyNote[ch.id] = 'UPLOADING';
     huntRenderAll(); huntWireList();
     const name = `hunt/${ch.id}/${me.id}-${Date.now()}.jpg`;
-    proofUrl = await sbUpload('proofs', name, blob);
+    proofPath = await sbUpload('proofs', name, blob);
   }catch(e){
     console.warn(e);
     huntErr[ch.id] = "Couldn't upload the photo — try again";
@@ -270,7 +304,7 @@ async function huntClaim(ch, file){
   }
 
   huntBusyNote[ch.id] = 'SAVING';
-  const row = {player_id:me.id, player_name:me.name, av:me.av, kind:"hunt", target:ch.id, points:ch.pts, ts:Date.now(), proof_url:proofUrl};
+  const row = {player_id:me.id, player_name:me.name, av:me.av, kind:"hunt", target:ch.id, points:ch.pts, ts:Date.now(), proof_path:proofPath};
   huntClaims.push(row);
   huntRenderAll(); huntWireList();
   try{
@@ -289,7 +323,9 @@ async function huntClaim(ch, file){
 }
 
 /* Full-size view of one proof. Lives on <body> so it clears the games overlay. */
-function huntOpenProof(url, who){
+function huntOpenProof(path, who){
+  const url = huntSignedUrl(path);
+  if(!url) return;                     // still signing; the thumbnail is blank too
   huntCloseProof();
   const box = document.createElement('div');
   box.className = 'hunt-lightbox';
@@ -333,8 +369,9 @@ function huntWireList(){
     };
   });
   root.querySelectorAll('.hunt-viewproof').forEach(btn=>{
-    btn.onclick = ()=>huntOpenProof(btn.dataset.url, btn.dataset.who);
+    btn.onclick = ()=>huntOpenProof(btn.dataset.path, btn.dataset.who);
   });
+  huntSignProofs();
 }
 
 function huntBuildProofInput(){
@@ -381,5 +418,6 @@ function stopHunt(){
   huntErr = {};
   huntBusyNote = {};
   huntProofFor = null;
+  huntSigned = {};
   huntCloseProof();
 }

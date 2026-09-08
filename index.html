@@ -318,7 +318,8 @@ async function sb(path, opts={}){
   return body ? JSON.parse(body) : null;
 }
 /* Supabase Storage is a separate API from PostgREST, so it does not go through
-   sb(). Returns the public URL of the uploaded object. */
+   sb(). Returns the object path — the buckets are private, so a path only turns
+   into something fetchable via sbSign() below. */
 async function sbUpload(bucket, path, blob){
   const r = await fetch(SUPABASE_URL+"/storage/v1/object/"+bucket+"/"+path, {
     method:"POST",
@@ -327,7 +328,25 @@ async function sbUpload(bucket, path, blob){
     body: blob
   });
   if(!r.ok) throw new Error("Storage "+r.status+" "+(await r.text()));
-  return SUPABASE_URL+"/storage/v1/object/public/"+bucket+"/"+path;
+  return path;
+}
+
+/* Sign a batch of object paths for temporary read access. Returns
+   {path: url} and simply omits anything the server would not sign. */
+async function sbSign(bucket, paths, expiresIn=3600){
+  if(!paths.length) return {};
+  const r = await fetch(SUPABASE_URL+"/storage/v1/object/sign/"+bucket, {
+    method:"POST",
+    headers:{ apikey:SUPABASE_ANON_KEY, Authorization:"Bearer "+SUPABASE_ANON_KEY, "Content-Type":"application/json" },
+    body: JSON.stringify({ expiresIn, paths })
+  });
+  if(!r.ok) throw new Error("Storage sign "+r.status+" "+(await r.text()));
+  const out={};
+  for(const row of (await r.json())||[]){
+    // signedURL comes back rooted at /object/sign/...; error rows have no URL.
+    if(row && row.signedURL) out[row.path] = SUPABASE_URL+"/storage/v1"+row.signedURL;
+  }
+  return out;
 }
 
 /* Phone cameras produce 3–8 MB files; downscale to a long edge of `max` and
