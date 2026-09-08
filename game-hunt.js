@@ -32,6 +32,12 @@ const HUNT_CHALLENGES = [
   {id:"escalatorswitch", em:"🚶", t:"Switch sides like a local", d:"Notice and correctly follow the escalator-standing side in both Kyoto and Osaka.", pts:20},
 ];
 const HUNT_SIGN_TTL = 60*60*1000;   // proof photos are served on 1h signed URLs
+/* Proof has to be shot in Japan, on the spot. Two things enforce that: the
+   camera is opened directly (no camera roll, so no photo from last year), and
+   the claim needs a live GPS fix inside this box. A manual PIN does not count
+   — it is self-declared, which would make the whole check pointless. */
+const HUNT_JAPAN = {latMin:24.0, latMax:46.5, lngMin:122.0, lngMax:146.5};
+const HUNT_FIX_MAX_AGE = 10*60*1000;   // a fix older than this is not "here, now"
 const HUNT_BY_ID = Object.fromEntries(HUNT_CHALLENGES.map(c=>[c.id,c]));
 const HUNT_TOTAL_POSSIBLE = HUNT_CHALLENGES.reduce((s,c)=>s+c.pts,0);
 
@@ -114,6 +120,8 @@ function renderHunt(){
     .hunt-lightbox button{font-family:'Press Start 2P',monospace;font-size:9px;padding:12px 16px;min-height:44px;
       background:var(--cream);color:var(--ink);border:3px solid var(--ink)}
     .hunt-netnote{font-size:15px;color:#6b5f45;text-align:center;margin:6px 0 12px}
+    .hunt-geo{background:var(--navy2);border:3px solid var(--gold2);color:#dce3f0;padding:8px 10px;margin-bottom:10px;font-size:17px;line-height:1.25}
+    .hunt-geo b{color:var(--gold)}
   </style>
   <div class="hunt-wrap">
     <div class="hunt-head">
@@ -126,6 +134,7 @@ function renderHunt(){
       <div id="huntLbList"><div class="hunt-lb-empty">Loading…</div></div>
     </div>
     ${huntLoadFailed ? '<div class="hunt-netnote">Can\'t reach the server right now — showing what we have.</div>' : ''}
+    <div class="hunt-geo" id="huntGeoNote" hidden></div>
     <div class="hunt-filters" id="huntFilters">
       <button data-m="all" class="on">ALL</button>
       <button data-m="unclaimed">UNCLAIMED</button>
@@ -133,6 +142,17 @@ function renderHunt(){
     </div>
     <div id="huntList"></div>
   </div>`;
+}
+
+/* {ok} if this device is reporting a live position inside Japan, else {ok:false, why}. */
+function huntWhereAmI(){
+  if(me.lat==null || me.lng==null) return {ok:false, why:"Turn location on to claim — proof has to be shot in Japan."};
+  if(me.manual) return {ok:false, why:"You are pinned to a stop. Claiming needs a real GPS fix, so switch PIN back to live GPS."};
+  if(me.ts && Date.now()-me.ts > HUNT_FIX_MAX_AGE) return {ok:false, why:"Your location is stale. Give GPS a moment to catch up, then try again."};
+  const j = HUNT_JAPAN;
+  if(me.lat<j.latMin || me.lat>j.latMax || me.lng<j.lngMin || me.lng>j.lngMax)
+    return {ok:false, why:"You are not in Japan yet — claims open when you land."};
+  return {ok:true};
 }
 
 function huntAvatarImg(av){
@@ -256,7 +276,15 @@ function huntRenderList(){
   el.innerHTML = list.length ? list.map(huntRenderRow).join('') : '<div class="hunt-lb-empty" style="padding:10px 0">Nothing here.</div>';
 }
 
-function huntRenderAll(){ huntRenderLeaderboard(); huntRenderList(); }
+function huntRenderGeoNote(){
+  const el = document.getElementById('huntGeoNote');
+  if(!el) return;
+  const where = huntWhereAmI();
+  el.hidden = where.ok;
+  if(!where.ok) el.innerHTML = `<b>Claims are locked.</b> ${esc(where.why)}`;
+}
+
+function huntRenderAll(){ huntRenderLeaderboard(); huntRenderGeoNote(); huntRenderList(); }
 
 async function huntFetchClaims(){
   try{
@@ -274,8 +302,10 @@ async function huntFetchClaims(){
    force the camera and rule out a shot already in the camera roll. */
 function huntAskProof(ch){
   if(huntPending.has(ch.id)) return;
+  const where = huntWhereAmI();
+  if(!where.ok){ huntErr[ch.id] = where.why; huntRenderAll(); huntWireList(); return; }
   huntBuildProofInput();
-  if(!huntProofInput){ huntErr[ch.id] = "Can't open the photo picker on this browser."; huntRenderAll(); huntWireList(); return; }
+  if(!huntProofInput){ huntErr[ch.id] = "Can't open the camera on this browser."; huntRenderAll(); huntWireList(); return; }
   huntProofFor = ch.id;
   huntProofInput.value = '';        // so re-picking the same file still fires change
   huntProofInput.click();
@@ -284,6 +314,9 @@ function huntAskProof(ch){
 async function huntClaim(ch, file){
   if(huntPending.has(ch.id)) return;
   if(!file){ huntErr[ch.id] = "A photo is needed to claim this one."; huntRenderAll(); huntWireList(); return; }
+  // Re-check: the camera can sit open for a while before a shot comes back.
+  const where = huntWhereAmI();
+  if(!where.ok){ huntErr[ch.id] = where.why; huntRenderAll(); huntWireList(); return; }
   huntPending.add(ch.id);
   huntErr[ch.id] = null;
   huntBusyNote[ch.id] = 'SHRINKING';
@@ -305,7 +338,8 @@ async function huntClaim(ch, file){
   }
 
   huntBusyNote[ch.id] = 'SAVING';
-  const row = {player_id:me.id, player_name:me.name, av:me.av, kind:"hunt", target:ch.id, points:ch.pts, ts:Date.now(), proof_path:proofPath};
+  const row = {player_id:me.id, player_name:me.name, av:me.av, kind:"hunt", target:ch.id, points:ch.pts, ts:Date.now(),
+               proof_path:proofPath, lat:me.lat, lng:me.lng};
   huntClaims.push(row);
   huntRenderAll(); huntWireList();
   try{
@@ -380,6 +414,7 @@ function huntBuildProofInput(){
   const i = document.createElement('input');
   i.type = 'file';
   i.accept = 'image/*';
+  i.capture = 'environment';   // shoot it now, on the spot — no camera roll
   // Visually hidden, NOT display:none — Safari refuses to open the picker for a
   // programmatic .click() on an input that is not in the layout.
   i.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
