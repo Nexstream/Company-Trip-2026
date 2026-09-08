@@ -90,20 +90,13 @@
   #status.hide{display:none}
 
   /* right side buttons */
-  /* Capped off the measured chrome vars so the rail can never grow into #hud and
-     swallow taps. It wraps into extra columns (leftwards, via wrap-reverse) rather
-     than scrolling, because a hidden scrollbar on a 7-button rail left EXIT and the
-     outfit button clipped with no affordance in landscape. dvh, not vh: on mobile
-     Safari 100vh is the LARGE viewport, so vh under-constrains the very case this
-     cap exists for. overflow-y is the last-resort backstop, and it makes this a
-     scroll container - which clips descendants to the padding box even when nothing
-     scrolls - so the rail is offset by the chat badge's 7px overhang (and the
-     buttons' 3px shadow) and reclaims it as padding, keeping the buttons visually
-     10px from the edge. */
-  #sidebtns{position:absolute; right:3px; bottom:calc(var(--trayh,140px) + 7px); padding:0 7px 3px 0; z-index:500; display:flex; flex-direction:column; flex-wrap:wrap-reverse; align-content:flex-end; gap:8px;
-    max-height:calc(100vh - var(--hudh,60px) - var(--trayh,140px) - 24px);
-    max-height:calc(100dvh - var(--hudh,60px) - var(--trayh,140px) - 24px); overflow-y:auto; scrollbar-width:none}
-  #sidebtns::-webkit-scrollbar{display:none}
+  /* Capped at exactly 4 buttons by design - ME, ALL, chat and the "..." that opens
+     #morePanel for everything else (pin/status/outfit/link/leave). That cap is what
+     keeps the rail from ever overflowing, so there is no height cap, no wrapping and
+     no scroll container here anymore: overflow-y:auto forces overflow-x to compute
+     to auto too, and that hidden horizontal scroll is what twice left buttons
+     unreachable on a real phone. Nothing left to overflow, nothing to hide it in. */
+  #sidebtns{position:absolute; right:10px; bottom:calc(var(--trayh,140px) + 7px); z-index:500; display:flex; flex-direction:column; gap:8px}
   #sidebtns .rb{position:relative; width:48px; height:48px; background:var(--navy); border:3px solid var(--gold); color:var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Press Start 2P',monospace; font-size:9px; box-shadow:3px 3px 0 rgba(0,0,0,.5)}
   #sidebtns .rb.on{background:var(--red); color:#fff}
 
@@ -223,6 +216,16 @@
   #linkForm input:focus{border-color:var(--red)}
   #linkForm button{padding:8px 10px; font-size:9px; border-width:3px; box-shadow:2px 2px 0 var(--navy2)}
 
+  /* overflow sheet: everything that isn't ME/ALL/chat lives behind the "..." rail button */
+  #morePanel{position:absolute; right:66px; bottom:calc(var(--trayh,140px) + 10px); z-index:600; display:none; width:min(260px,calc(100vw - 90px)); padding:10px;
+    background:rgba(27,42,68,.97); border:3px solid var(--gold); box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+  #morePanel.on{display:flex; flex-direction:column; gap:8px}
+  #morePanel .mh{font-family:'Press Start 2P',monospace; font-size:8px; color:var(--gold); margin-bottom:2px}
+  .mrow{display:flex; align-items:center; width:100%; min-height:44px; padding:8px 10px; background:var(--navy); border:2px solid var(--gold); color:var(--gold);
+    font-family:'Press Start 2P',monospace; font-size:9px; text-align:left}
+  .mrow.on{background:var(--red); color:#fff}
+  .mrow.leave{color:#e2705a; border-color:var(--red); margin-top:4px}   /* the destructive row: lifted off the list, and light enough to read on navy */
+
   /* chat bubbles: toast stack (visible over the games/handbook overlays too) */
   #chatPops{position:fixed; left:12px; right:70px; bottom:calc(var(--trayh,0px) + 12px); z-index:1200;
     display:flex; flex-direction:column; align-items:flex-start; gap:6px; pointer-events:none}   /* right:70px keeps clear of the side rail */
@@ -245,12 +248,12 @@
     #hud .left{gap:8px}
     #hud .btn{font-size:8px; padding:7px 9px}
     #status{font-size:15px; padding:5px 8px}
-    #chatPanel,#emojiPanel,#outfitPanel,#linkPanel{right:62px}
+    #chatPanel,#emojiPanel,#outfitPanel,#linkPanel,#morePanel{right:62px}
   }
   @media (max-height:720px){
     #sidebtns{gap:6px}
     #sidebtns .rb{width:42px; height:42px; font-size:8px}
-    #chatPanel,#emojiPanel,#outfitPanel,#linkPanel{right:58px}
+    #chatPanel,#emojiPanel,#outfitPanel,#linkPanel,#morePanel{right:58px}
   }
 
   /* handbook */
@@ -359,12 +362,8 @@
   <div id="sidebtns">
     <button class="rb on" id="followBtn" title="Follow me">ME</button>
     <button class="rb" id="tripBtn" title="Show whole trip">ALL</button>
-    <button class="rb" id="pinBtn" title="Pin to a stop">PIN</button>
     <button class="rb" id="chatBtn" title="Party chat" style="font-size:18px">💬<span class="badge" id="chatBadge"></span></button>
-    <button class="rb" id="emojiBtn" title="Status & reactions" style="font-size:18px">😊</button>
-    <button class="rb" id="outfitBtn" title="Change your outfit" style="font-size:18px">👕</button>
-    <button class="rb" id="linkBtn" title="Link another device" style="font-size:18px">🔗</button>
-    <button class="rb" id="leaveBtn" title="Leave party">EXIT</button>
+    <button class="rb" id="moreBtn" title="More actions" style="font-size:18px">⋯</button>
   </div>
   <div id="emojiPanel" class="frame">
     <div class="eh">STATUS <span>stays on your marker</span></div>
@@ -399,6 +398,14 @@
       </form>
       <div class="note" id="linkMsg">This device will become that traveller. Its own progress stays behind.</div>
     </div>
+  </div>
+  <div id="morePanel" class="frame">
+    <div class="mh">MORE</div>
+    <button type="button" class="mrow" id="pinBtn" title="Pin to a stop">📍 Pin to a stop</button>
+    <button type="button" class="mrow" id="emojiBtn" title="Status & reactions">😊 Status & reactions</button>
+    <button type="button" class="mrow" id="outfitBtn" title="Change your outfit">👕 Change outfit</button>
+    <button type="button" class="mrow" id="linkBtn" title="Link another device">🔗 Link a device</button>
+    <button type="button" class="mrow leave" id="leaveBtn" title="Leave party">🚪 Leave party</button>
   </div>
   <div id="tray">
     <div class="th px"><span>NEARBY</span><span id="nextTxt">—</span></div>
@@ -803,12 +810,13 @@ function initMap(){
     m.bindPopup(()=>{ const w=(typeof spotWhenVisited==='function'?spotWhenVisited(k):whenVisited(k)); return `<div class="t">LANDMARK</div>${s.n}${w?`<br><span style="color:#6b5f45">${w}</span>`:""}${distFromMe(s.lat,s.lng)}<br><button class="go" onclick="pinTo('${k}')">I am here</button><button class="info" onclick="openSpotInfo('${k}')">Info</button>`; });
   }
   map.on('dragstart',()=>setFollow(false));
-  document.getElementById('followBtn').onclick=()=>{ setFollow(true); if(me.lat!=null) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),18),FLY_OPTS); else setStatus("No position yet. Allow location access or use PIN."); };
+  document.getElementById('followBtn').onclick=()=>{ setFollow(true); if(me.lat!=null) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),18),FLY_OPTS); else setStatus("No position yet. Allow location access, or pin yourself from the ⋯ menu."); };
   document.getElementById('tripBtn').onclick=()=>{ setFollow(false); map.flyToBounds(L.latLngBounds(Object.values(SPOTS).map(s=>[s.lat,s.lng])),{...FLY_OPTS,padding:[30,30]}); };
   document.getElementById('pinBtn').onclick=manualPin;
   document.getElementById('emojiBtn').onclick=toggleEmojiPanel;
   document.getElementById('outfitBtn').onclick=toggleOutfitPanel;
-  map.on('click dragstart',()=>{ closeEmojiPanel(); closeOutfitPanel(); if(typeof closeLinkPanel==='function') closeLinkPanel(); });
+  document.getElementById('moreBtn')?.addEventListener('click',()=>togglePanel('more'));
+  map.on('click dragstart',()=>closeAllPanels());
   buildEmojiPanel();
   buildOutfitPanel();
   document.getElementById('leaveBtn').onclick=leave;
@@ -880,6 +888,7 @@ window.openSpotInfo=function(k){
 };
 window.pinTo=function(k){ me.manual=k; me.lat=SPOTS[k].lat; me.lng=SPOTS[k].lng; me.ts=Date.now(); map.closePopup(); pushMe(); renderAll(); setStatus(`Pinned to <b>${SPOTS[k].n}</b>. Tap ME twice to go back to GPS.`); if(follow) map.flyTo([me.lat,me.lng],16,FLY_OPTS); document.getElementById('book').classList.remove('on'); };
 function manualPin(){
+  if(typeof closeAllPanels==='function') closeAllPanels();   // the sheet holding this button shouldn't sit open behind the prompt()
   const names=Object.keys(SPOTS); let msg="Pin yourself to a stop. Type a number:\n\n0. Back to live GPS\n";
   names.forEach((k,i)=>msg+=`${i+1}. ${SPOTS[k].n}\n`);
   const pick=prompt(msg); if(pick===null) return; const n=parseInt(pick,10);
@@ -887,6 +896,7 @@ function manualPin(){
   const k=names[n-1]; if(k) pinTo(k);
 }
 async function leave(){
+  if(typeof closeAllPanels==='function') closeAllPanels();   // ditto, before confirm()
   if(!confirm("Leave the party? Your marker will be removed for everyone.")) return;
   leaving=true;
   try{ await db.deletePlayer(me.id); }catch(e){}
@@ -902,7 +912,7 @@ const statusEl=document.getElementById('status'); let firstFix=true;
 function setStatus(t){ statusEl.innerHTML=t; statusEl.classList.remove('hide'); }
 statusEl.onclick=()=>statusEl.classList.add('hide');   // tap it away if it is in the way
 function startLocation(){
-  if(!navigator.geolocation){ setStatus("Location not supported here. Use <b>PIN</b> to place yourself."); return; }
+  if(!navigator.geolocation){ setStatus("Location not supported here. Use <b>⋯ › Pin to a stop</b> to place yourself."); return; }
   watchId=navigator.geolocation.watchPosition(pos=>{
     if(me.manual) return;
     me.lat=pos.coords.latitude; me.lng=pos.coords.longitude; me.acc=pos.coords.accuracy; me.ts=Date.now();
@@ -912,7 +922,7 @@ function startLocation(){
     else if(follow) map.panTo([me.lat,me.lng],{animate:true});
     pushMe(); renderAll();
   },err=>{
-    setStatus(`Location ${err.code===1?"permission denied":"unavailable"}. Use <b>PIN</b> so the party can still see you.`);
+    setStatus(`Location ${err.code===1?"permission denied":"unavailable"}. Use <b>⋯ › Pin to a stop</b> so the party can still see you.`);
   },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
 }
 
@@ -936,6 +946,39 @@ async function pullAll(){
 function syncLoop(){ pullAll(); setInterval(pullAll,6000); pullReactions(); setInterval(pullReactions,3000); setInterval(()=>{ if(me.lat!=null){ me.ts=Date.now(); pushMe(); } },30000); }
 
 /* =========================================================
+   PANELS
+   Five mutually exclusive overlays share this one screen slot: emoji,
+   outfit, more, chat and link. The generic ones close by dropping .on
+   from panel+button; chat and link MUST close through their own
+   function instead, because chat.js/link.js track chatOn/linkOn
+   themselves - stripping the class from outside would leave that
+   state stale and the next tap on the button would do nothing.
+   ========================================================= */
+const PANELS = {
+  emoji:  { panel:'emojiPanel',  btn:'emojiBtn'  },
+  outfit: { panel:'outfitPanel', btn:'outfitBtn' },
+  more:   { panel:'morePanel',   btn:'moreBtn'   },
+  link:   { close:()=>{ if(typeof closeLinkPanel==='function') closeLinkPanel(); } },
+  chat:   { close:()=>{ if(typeof chatSetOpen==='function') chatSetOpen(false); } },
+};
+function closeAllPanels(except){
+  for(const k in PANELS){
+    if(k===except) continue;
+    const e=PANELS[k];
+    if(e.close){ e.close(); continue; }
+    document.getElementById(e.panel)?.classList.remove('on');
+    document.getElementById(e.btn)?.classList.remove('on');
+  }
+}
+function togglePanel(key){
+  const e=PANELS[key]; if(!e) return;
+  const p=document.getElementById(e.panel), b=document.getElementById(e.btn);
+  if(!p||!b) return;
+  closeAllPanels(key);
+  p.classList.toggle('on'); b.classList.toggle('on',p.classList.contains('on'));
+}
+
+/* =========================================================
    EMOJI: status + reactions
    ========================================================= */
 function buildEmojiPanel(){
@@ -945,8 +988,8 @@ function buildEmojiPanel(){
   const rg=document.getElementById('reactGrid'); rg.innerHTML="";
   REACT_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.type="button"; b.textContent=e; b.onclick=()=>{ sendReaction(e); closeEmojiPanel(); }; rg.appendChild(b); });
 }
-function toggleEmojiPanel(){ closeOutfitPanel(); if(typeof closeLinkPanel==='function') closeLinkPanel(); const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
-function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); document.getElementById('emojiBtn').classList.remove('on'); }
+function toggleEmojiPanel(){ togglePanel('emoji'); }
+function closeEmojiPanel(){ document.getElementById('emojiPanel')?.classList.remove('on'); document.getElementById('emojiBtn')?.classList.remove('on'); }
 
 /* =========================================================
    OUTFIT: change build/hair/clothes/extra after joining
@@ -966,13 +1009,10 @@ function buildOutfitPanel(){
   });
   if(panel) panel.scrollTop=keep;
 }
-function toggleOutfitPanel(){
-  closeEmojiPanel(); if(typeof chatSetOpen==='function') chatSetOpen(false); if(typeof closeLinkPanel==='function') closeLinkPanel();
-  const p=document.getElementById('outfitPanel'); p.classList.toggle('on'); document.getElementById('outfitBtn').classList.toggle('on',p.classList.contains('on'));
-}
-function closeOutfitPanel(){ document.getElementById('outfitPanel').classList.remove('on'); document.getElementById('outfitBtn').classList.remove('on'); }
+function toggleOutfitPanel(){ togglePanel('outfit'); }
+function closeOutfitPanel(){ document.getElementById('outfitPanel')?.classList.remove('on'); document.getElementById('outfitBtn')?.classList.remove('on'); }
 async function sendReaction(emoji){
-  if(me.lat==null){ setStatus("No position yet — allow location or use <b>PIN</b> before reacting."); return; }
+  if(me.lat==null){ setStatus("No position yet — allow location or use <b>⋯ › Pin to a stop</b> before reacting."); return; }
   const r={player_id:me.id,emoji,lat:me.lat,lng:me.lng,ts:Date.now()};
   popReaction(r);                       // instant local feedback
   try{ await db.sendReaction(r); }catch(e){ console.warn(e); }
@@ -1038,7 +1078,7 @@ function renderTray(){
   const el=document.getElementById('cards');
   const sx=el.scrollLeft;               // the rebuild below would otherwise snap the tray back to the left on every echo
   el.innerHTML="";
-  if(!list.length){ el.innerHTML='<div style="font-size:17px;color:#b9c3d6;padding:6px">No one on the map yet. Allow location or tap PIN.</div>'; return; }
+  if(!list.length){ el.innerHTML='<div style="font-size:17px;color:#b9c3d6;padding:6px">No one on the map yet. Allow location or pin yourself from the ⋯ menu.</div>'; return; }
   list.forEach(p=>{
     const echo=trayEchoHtml(p.id);
     const d=document.createElement('div'); d.className='card2'+(p.id===me.id?' me':'')+(echo?' echoing':'');
@@ -1379,14 +1419,14 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      keep serving a stale module after index.html has updated, which looks exactly
      like "the new feature didn't ship". Bump it on every deploy that changes a
      module. -->
-<script src="art.js?v=20260909c"></script>
-<script src="checklist.js?v=20260909c"></script>
-<script src="handbook.js?v=20260909c"></script>
-<script src="game-hunt.js?v=20260909c"></script>
-<script src="game-race.js?v=20260909c"></script>
-<script src="game-trivia.js?v=20260909c"></script>
-<script src="game-sushi.js?v=20260909c"></script>
-<script src="chat.js?v=20260909c"></script>
-<script src="link.js?v=20260909c"></script>
+<script src="art.js?v=20260909d"></script>
+<script src="checklist.js?v=20260909d"></script>
+<script src="handbook.js?v=20260909d"></script>
+<script src="game-hunt.js?v=20260909d"></script>
+<script src="game-race.js?v=20260909d"></script>
+<script src="game-trivia.js?v=20260909d"></script>
+<script src="game-sushi.js?v=20260909d"></script>
+<script src="chat.js?v=20260909d"></script>
+<script src="link.js?v=20260909d"></script>
 </body>
 </html>

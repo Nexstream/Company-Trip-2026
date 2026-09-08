@@ -113,9 +113,7 @@ function linkSetOpen(v){
   p.classList.toggle('on',linkOn);
   document.getElementById('linkBtn')?.classList.toggle('on',linkOn);
   if(linkOn){
-    if(typeof closeEmojiPanel==='function') closeEmojiPanel();
-    if(typeof closeOutfitPanel==='function') closeOutfitPanel();
-    if(typeof chatSetOpen==='function') chatSetOpen(false);
+    if(typeof closeAllPanels==='function') closeAllPanels('link');
     const codeEl=document.getElementById('linkMyCode'); if(codeEl) codeEl.textContent=me.id;
     const msgEl=document.getElementById('linkMsg'); if(msgEl) msgEl.textContent=LINK_MSG_DEFAULT;   // clear any stale error/copy text from a prior visit
   }
