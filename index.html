@@ -12,7 +12,7 @@
      startGame() -> initMap() for a returning player before any of the bottom module tags
      have run, so ROUTE_WALK has to already exist by then or the footpath ribbon silently
      never appears for the common case of a saved name in localStorage. -->
-<script src="route.js?v=20260909b"></script>
+<script src="route.js?v=20260909c"></script>
 <style>
   :root{
     --navy:#1b2a44; --navy2:#122036; --gold:#c9a24a; --gold2:#8e6f2a;
@@ -175,6 +175,7 @@
   .leaflet-popup-content{margin:8px 12px}
   .leaflet-popup-content .t{font-family:'Press Start 2P',monospace; font-size:9px; color:var(--red); margin-bottom:4px}
   .leaflet-popup-content .go{font-family:'Press Start 2P',monospace; font-size:8px; margin-top:6px; background:var(--navy); color:var(--gold); border:2px solid var(--gold); padding:5px 8px}
+  .leaflet-popup-content .info{font-family:'Press Start 2P',monospace; font-size:8px; margin-top:6px; margin-left:6px; background:var(--gold); color:var(--ink); border:2px solid var(--ink); padding:5px 8px}
   @media (prefers-reduced-motion:no-preference){ .pm.me canvas{animation:bob 1s steps(2) infinite} @keyframes bob{50%{transform:translateY(-2px)}} }
 
   /* party chat */
@@ -794,7 +795,7 @@ function initMap(){
     const s=SPOTS[k];
     const icon=L.divIcon({className:'', html:`<img class="lm" src="${ICON_URL[s.icon]||ICON_URL.temple}" alt="">`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-26]});
     const m=L.marker([s.lat,s.lng],{icon}).addTo(map);
-    m.bindPopup(()=>{ const w=whenVisited(k); return `<div class="t">LANDMARK</div>${s.n}${w?`<br><span style="color:#6b5f45">${w}</span>`:""}${distFromMe(s.lat,s.lng)}<br><button class="go" onclick="pinTo('${k}')">I am here</button>`; });
+    m.bindPopup(()=>{ const w=(typeof spotWhenVisited==='function'?spotWhenVisited(k):whenVisited(k)); return `<div class="t">LANDMARK</div>${s.n}${w?`<br><span style="color:#6b5f45">${w}</span>`:""}${distFromMe(s.lat,s.lng)}<br><button class="go" onclick="pinTo('${k}')">I am here</button><button class="info" onclick="openSpotInfo('${k}')">Info</button>`; });
   }
   map.on('dragstart',()=>setFollow(false));
   document.getElementById('followBtn').onclick=()=>{ setFollow(true); if(me.lat!=null) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),18),FLY_OPTS); else setStatus("No position yet. Allow location access or use PIN."); };
@@ -831,6 +832,17 @@ function renderMarkers(){
     else { accCircle.setLatLng([me.lat,me.lng]); accCircle.setRadius(me.manual?15:(me.acc||30)); }
   }
 }
+/* Jump from a map pin straight to that stop's handbook page. dayView is moved to the
+   day the stop falls on so the detail page's Back button lands somewhere sensible
+   rather than on whichever day the handbook happened to be showing. */
+window.openSpotInfo=function(k){
+  if(!SPOTS[k]) return;
+  map.closePopup();
+  const di=DAYS.findIndex(d=>d.ev.some(e=>e[3]===k)); if(di>=0) dayView=di;
+  tab='itin'; spotView=k;
+  document.getElementById('book').classList.add('on');
+  renderBook();
+};
 window.pinTo=function(k){ me.manual=k; me.lat=SPOTS[k].lat; me.lng=SPOTS[k].lng; me.ts=Date.now(); map.closePopup(); pushMe(); renderAll(); setStatus(`Pinned to <b>${SPOTS[k].n}</b>. Tap ME twice to go back to GPS.`); if(follow) map.flyTo([me.lat,me.lng],16,FLY_OPTS); document.getElementById('book').classList.remove('on'); };
 function manualPin(){
   const names=Object.keys(SPOTS); let msg="Pin yourself to a stop. Type a number:\n\n0. Back to live GPS\n";
@@ -1059,11 +1071,12 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.getElemen
 function renderBook(){
   [...tabsEl.children].forEach(b=>b.classList.toggle('on',b.dataset.id===tab));
   document.getElementById('page').innerHTML = TABS.find(t=>t.id===tab).render();
-  document.querySelectorAll('.daysel button').forEach(b=>b.onclick=()=>{dayView=+b.dataset.i; spotView=null; renderBook();});
-  document.querySelectorAll('.go').forEach(b=>b.onclick=()=>pinTo(b.dataset.k));
-  document.querySelectorAll('.fly').forEach(b=>b.onclick=()=>{ const s=SPOTS[b.dataset.k]; setFollow(false); map.flyTo([s.lat,s.lng],16,FLY_OPTS); document.getElementById('book').classList.remove('on'); });
-  document.querySelectorAll('.spotlink,.sinfo').forEach(b=>b.onclick=()=>{ spotView=b.dataset.k; renderBook(); });
-  document.querySelectorAll('.spotback').forEach(b=>b.onclick=()=>{ spotView=null; renderBook(); });
+  const pg=document.getElementById('page');
+  pg.querySelectorAll('.daysel button').forEach(b=>b.onclick=()=>{dayView=+b.dataset.i; spotView=null; renderBook();});
+  pg.querySelectorAll('.go').forEach(b=>b.onclick=()=>pinTo(b.dataset.k));
+  pg.querySelectorAll('.fly').forEach(b=>b.onclick=()=>{ const s=SPOTS[b.dataset.k]; setFollow(false); map.flyTo([s.lat,s.lng],16,FLY_OPTS); document.getElementById('book').classList.remove('on'); });
+  pg.querySelectorAll('.spotlink,.sinfo').forEach(b=>b.onclick=()=>{ spotView=b.dataset.k; renderBook(); });
+  pg.querySelectorAll('.spotback').forEach(b=>b.onclick=()=>{ spotView=null; renderBook(); });
   if(tab==='pack' && typeof ckOnPackShown==='function') ckOnPackShown();
 }
 function renderItin(){
@@ -1139,14 +1152,14 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      keep serving a stale module after index.html has updated, which looks exactly
      like "the new feature didn't ship". Bump it on every deploy that changes a
      module. -->
-<script src="art.js?v=20260909b"></script>
-<script src="checklist.js?v=20260909b"></script>
-<script src="handbook.js?v=20260909b"></script>
-<script src="game-hunt.js?v=20260909b"></script>
-<script src="game-race.js?v=20260909b"></script>
-<script src="game-trivia.js?v=20260909b"></script>
-<script src="game-sushi.js?v=20260909b"></script>
-<script src="chat.js?v=20260909b"></script>
-<script src="link.js?v=20260909b"></script>
+<script src="art.js?v=20260909c"></script>
+<script src="checklist.js?v=20260909c"></script>
+<script src="handbook.js?v=20260909c"></script>
+<script src="game-hunt.js?v=20260909c"></script>
+<script src="game-race.js?v=20260909c"></script>
+<script src="game-trivia.js?v=20260909c"></script>
+<script src="game-sushi.js?v=20260909c"></script>
+<script src="chat.js?v=20260909c"></script>
+<script src="link.js?v=20260909c"></script>
 </body>
 </html>
