@@ -26,8 +26,14 @@ const DEER_PICK_PAL = { R:"#c8442b", Y:"#c9a24a", B:"#8e6f2a" };
 // from the player's own charRows() so build/accessory follow the pose. Must stay 5
 // rows: arcadeDraw() sizes the sprite off rows.length*scale.
 function arcadeDuckRows(){ const r=charRows(me.av||0); return [r[1],r[2],r[3],r[6],r[7]]; }
-// two-frame running legs, swapped in place of the player sprite's last row while on ground
+// running legs, swapped in place of the player sprite's last row while on ground.
+// One set per build - body 1's legs are slimmer, and reusing body 0's frames made a
+// build-1 player's legs visibly widen the instant they landed. All sets must keep the
+// same frame count, since runFrame is advanced against DEER_RUN_LEGS.length.
 const DEER_RUN_LEGS = [".LL..LL.","L....LL.",".LL....L"];
+const DEER_RUN_LEGS_SLIM = ["..L..L..",".L...L..","..L...L."];
+const DEER_RUN_LEGS_BY_BUILD = [DEER_RUN_LEGS, DEER_RUN_LEGS_SLIM];
+function arcadeRunLegs(){ return DEER_RUN_LEGS_BY_BUILD[avBuild(me.av||0)] || DEER_RUN_LEGS; }
 
 const ARCADE_STATE = {
   root:null, canvas:null, ctx:null, dpr:1, raf:null, running:false, screen:'start',
@@ -436,8 +442,9 @@ function arcadeDraw(){
 function arcadePlayerRows(p){
   const base = charRows(me.av||0);
   if(!p.onGround) return base;
+  const legs = arcadeRunLegs();
   const rows = base.slice(0, base.length-1);
-  rows.push(DEER_RUN_LEGS[ARCADE_STATE.runFrame % DEER_RUN_LEGS.length]);
+  rows.push(legs[ARCADE_STATE.runFrame % legs.length]);
   return rows;
 }
 

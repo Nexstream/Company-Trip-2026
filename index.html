@@ -69,12 +69,18 @@
 
   /* right side buttons */
   /* Capped off the measured chrome vars so the rail can never grow into #hud and
-     swallow taps. overflow-y makes this a scroll container, which clips descendants
-     to the padding box even when nothing scrolls - so the rail is offset by the
-     chat badge's 7px overhang (and the buttons' 3px shadow) and reclaims it as
-     padding, leaving the buttons visually at 10px from the edge. */
-  #sidebtns{position:absolute; right:3px; bottom:calc(var(--trayh,140px) + 7px); padding:0 7px 3px 0; z-index:500; display:flex; flex-direction:column; gap:8px;
-    max-height:calc(100vh - var(--hudh,60px) - var(--trayh,140px) - 24px); overflow-y:auto; scrollbar-width:none}
+     swallow taps. It wraps into extra columns (leftwards, via wrap-reverse) rather
+     than scrolling, because a hidden scrollbar on a 7-button rail left EXIT and the
+     outfit button clipped with no affordance in landscape. dvh, not vh: on mobile
+     Safari 100vh is the LARGE viewport, so vh under-constrains the very case this
+     cap exists for. overflow-y is the last-resort backstop, and it makes this a
+     scroll container - which clips descendants to the padding box even when nothing
+     scrolls - so the rail is offset by the chat badge's 7px overhang (and the
+     buttons' 3px shadow) and reclaims it as padding, keeping the buttons visually
+     10px from the edge. */
+  #sidebtns{position:absolute; right:3px; bottom:calc(var(--trayh,140px) + 7px); padding:0 7px 3px 0; z-index:500; display:flex; flex-direction:column; flex-wrap:wrap-reverse; align-content:flex-end; gap:8px;
+    max-height:calc(100vh - var(--hudh,60px) - var(--trayh,140px) - 24px);
+    max-height:calc(100dvh - var(--hudh,60px) - var(--trayh,140px) - 24px); overflow-y:auto; scrollbar-width:none}
   #sidebtns::-webkit-scrollbar{display:none}
   #sidebtns .rb{position:relative; width:48px; height:48px; background:var(--navy); border:3px solid var(--gold); color:var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Press Start 2P',monospace; font-size:9px; box-shadow:3px 3px 0 rgba(0,0,0,.5)}
   #sidebtns .rb.on{background:var(--red); color:#fff}
@@ -475,19 +481,23 @@ const DAYS = [
 /* =========================================================
    PIXEL SPRITES
    ========================================================= */
-// av is one int: av = ((build*AV_ACC.length)+acc)*64 + hair*8 + cloth (avCode/avHair/
-// avCloth/avAcc/avBuild below); AV_CC (=64) is AV_HAIR.length*AV_CLOTH.length, the
-// colour-combo count per look. Legacy av values 0-63 (written before build/accessory
-// existed) all decode to build 0 (the original CHAR sprite) and acc 0 ("None"), with
-// hair/cloth unchanged — so old picks render exactly as they always have.
+// av is one int: av = ((build*AV_BUILD_SLOTS_UNUSED)+acc)*AV_CC + hair*8 + cloth.
+// The slot counts are FROZEN constants, deliberately not AV_ACC.length/AV_BODY.length:
+// they are positional weights in stored data, so deriving them from array length would
+// silently remap every av already in the DB the day a 6th accessory is added.
+// Legacy av 0-63 (written before build/accessory existed) decode to build 0 (the
+// original CHAR sprite) and acc 0 ("None"), so this split adds no drift of its own.
+// Their hair does still shift, but that is the earlier hair/cloth split's accepted
+// tradeoff, not this one's: the old picker wrote 0-7 as paired hair+shirt presets.
 const AV_HAIR  = ["#2b1d12","#f2c14e","#7a3b1e","#111111","#d94f8a","#9b59b6","#4b86c4","#e0e0e0"];
 const AV_CLOTH = ["#c8442b","#3f6f9c","#5ad36a","#c9a24a","#ffffff","#ff9f43","#e74c3c","#2c3e50"];
 const AV_CC = AV_HAIR.length * AV_CLOTH.length;   // 64 colour combos per look
+const AV_ACC_SLOTS = 8, AV_BUILD_SLOTS = 8;       // frozen: see the note above
 function avHair(av){ return Math.floor((+av||0)/AV_CLOTH.length) % AV_HAIR.length; }
 function avCloth(av){ return (+av||0) % AV_CLOTH.length; }
-function avAcc(av){ return Math.floor((+av||0)/AV_CC) % AV_ACC.length; }
-function avBuild(av){ return Math.floor((+av||0)/(AV_CC*AV_ACC.length)) % AV_BODY.length; }
-function avCode(h,c,a,b){ return ((b*AV_ACC.length)+a)*AV_CC + h*AV_CLOTH.length + c; }
+function avAcc(av){ return Math.floor((+av||0)/AV_CC) % AV_ACC_SLOTS; }
+function avBuild(av){ return Math.floor((+av||0)/(AV_CC*AV_ACC_SLOTS)) % AV_BUILD_SLOTS; }
+function avCode(h,c,a,b){ return ((b*AV_ACC_SLOTS)+a)*AV_CC + h*AV_CLOTH.length + c; }
 const CHAR = ["..HHHH..",".HHHHHH.",".HSSSSH.",".SESSES.","..SSSS..",".CCCCCC.","CCCCCCCC",".LL..LL."];
 // Body 0 is the original sprite and must stay byte-identical - legacy av values
 // decode to it. Body 1 differs in silhouette: hair down past the jaw (rows 2-4),
@@ -746,6 +756,10 @@ function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remo
    OUTFIT: change build/hair/clothes/extra after joining
    ========================================================= */
 function buildOutfitPanel(){
+  // The picker rebuilds on every pick, which empties #outfitGrid and so clamps the
+  // scrolling panel's scrollTop to 0 - without this a tap on CLOTHES or EXTRA would
+  // bounce the user back up to BUILD.
+  const panel=document.getElementById('outfitPanel'), keep=panel?panel.scrollTop:0;
   buildAvPicker(document.getElementById('outfitGrid'), me.av, av=>{
     me.av=av; saveMe();
     // Instant local feedback: pushMe() only syncs players[] after its await, and
@@ -754,6 +768,7 @@ function buildOutfitPanel(){
     if(players[me.id]) players[me.id]={...players[me.id],av:me.av};
     pushMe(); renderAll(); buildOutfitPanel();
   });
+  if(panel) panel.scrollTop=keep;
 }
 function toggleOutfitPanel(){
   closeEmojiPanel(); if(typeof chatSetOpen==='function') chatSetOpen(false);
