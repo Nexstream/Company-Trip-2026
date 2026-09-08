@@ -38,3 +38,13 @@ drop policy if exists "proofs read for all" on storage.objects;
 create policy "proofs read for all" on storage.objects
   for select to anon, authenticated
   using (bucket_id = 'proofs');
+
+-- ---------------------------------------------------------------------------
+-- Migration: quest_claims_position (applied 2026-09-08)
+--
+-- Where a claim was made. Hunt claims are gated on a live GPS fix inside Japan,
+-- and this records the fix that let it through, so a claim is auditable after
+-- the fact rather than the check living only in the client.
+-- Nullable: race and pack rows, and every claim made before this, have none.
+alter table public.quest_claims add column if not exists lat double precision;
+alter table public.quest_claims add column if not exists lng double precision;
