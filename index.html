@@ -374,26 +374,136 @@ function spriteURLN(rows,pal){ const c=document.createElement('canvas'); c.width
 const ART_URL={}; for(const k in ART16) ART_URL[k]=spriteURLN(ART16[k],ART_PAL);
 function art(key,size){ size=size||28; const u=ART_URL[key]; if(!u) return ""; return `<img class="art-ic" src="${u}" alt="" style="width:${size}px;height:${size}px">`; }
 
-// Rest of code continues - game logic, map rendering, player sync, etc.
-function esc(s){ return (s||'').replace(/<script|</|"/g,'_').slice(0,60); }
-function setStatus(s){ document.getElementById('status').textContent = s; }
+
+/* =========================================================
+   STATE
+   ========================================================= */
+const SAVE_KEY='kansai-quest-me';
+function loadSaved(){ try{ return JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }catch(e){ return null; } }
+function saveMe(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify({id:me.id,name:me.name,av:me.av,emoji:me.emoji})); }catch(e){} }
+function clearSaved(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+const saved=loadSaved();
+const uid=(saved&&saved.id)||'p'+Math.random().toString(36).slice(2,10);
+const me={id:uid,name:"",av:0,lat:null,lng:null,acc:null,manual:null,ts:0,emoji:(saved&&saved.emoji)||null};
+let lastReactionTs=Date.now(), seenReactions=new Set();
+let players={}, markers={}, watchId=null, selectedAv=0, follow=true, map, accCircle, netOk=true;
+
+/* =========================================================
+   TITLE
+   ========================================================= */
+const avWrap=document.getElementById('avatars');
+AV_COLORS.forEach((_,i)=>{
+  const b=document.createElement('button'); b.type="button"; b.title="Traveller "+(i+1);
+  const c=document.createElement('canvas'); c.width=32;c.height=32; drawSprite(c.getContext('2d'),CHAR,charPal(i),0,0,4);
+  b.appendChild(c); if(i===0) b.classList.add('on');
+  b.onclick=()=>{ selectedAv=i; [...avWrap.children].forEach(x=>x.classList.remove('on')); b.classList.add('on'); };
+  avWrap.appendChild(b);
+});
+document.getElementById('start').onclick=()=>startGame();
+document.getElementById('name').addEventListener('keydown',e=>{ if(e.key==='Enter') startGame(); });
+
+function startGame(rejoin){
+  if(rejoin){ me.name=saved.name; me.av=saved.av||0; }
+  else{
+    const n=document.getElementById('name').value.trim();
+    if(!n){ const f=document.getElementById('name'); f.focus(); f.placeholder="Type a name first"; return; }
+    me.name=n; me.av=selectedAv;
+  }
+  saveMe();
+  document.getElementById('title').style.display='none';
+  document.getElementById('game').classList.add('on');
+  initMap(); startLocation(); syncLoop(); updateHud();
+}
+
+/* =========================================================
+   MAP (Leaflet)
+   ========================================================= */
+function initMap(){
+  map=L.map('map',{zoomControl:true, attributionControl:true, minZoom:5, maxZoom:21}).setView([34.72,135.55],10);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'&copy; OpenStreetMap contributors', maxZoom:21, maxNativeZoom:19
+  }).addTo(map);
+  map.zoomControl.setPosition('topright');
+  // route
+  const order=["kix","kyotoH","fushimi","nishiki","yasaka","sannen","kiyomizu","inamori","nankin","arimaH","ropeway","terrace","todaiji","narapark","osakaH","ebisu","castle","tsuten","kuromon","nyasaka","kix"];
+  L.polyline(order.map(k=>[SPOTS[k].lat,SPOTS[k].lng]),{color:'#1b2a44',weight:5,opacity:.55}).addTo(map);
+  L.polyline(order.map(k=>[SPOTS[k].lat,SPOTS[k].lng]),{color:'#c9a24a',weight:3,dashArray:'6 8',opacity:.95}).addTo(map);
+  // landmarks
+  for(const k in SPOTS){
+    const s=SPOTS[k];
+    const icon=L.divIcon({className:'', html:`<img class="lm" src="${ICON_URL[s.icon]||ICON_URL.temple}" alt="">`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-26]});
+    const m=L.marker([s.lat,s.lng],{icon}).addTo(map);
+    m.bindPopup(()=>{ const w=whenVisited(k); return `<div class="t">LANDMARK</div>${s.n}${w?`<br><span style="color:#6b5f45">${w}</span>`:""}${distFromMe(s.lat,s.lng)}<br><button class="go" onclick="pinTo('${k}')">I am here</button>`; });
+  }
+  map.on('dragstart',()=>setFollow(false));
+  document.getElementById('followBtn').onclick=()=>{ setFollow(true); if(me.lat!=null) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),18)); else setStatus("No position yet. Allow location access or use PIN."); };
+  document.getElementById('tripBtn').onclick=()=>{ setFollow(false); map.flyToBounds(L.latLngBounds(Object.values(SPOTS).map(s=>[s.lat,s.lng])),{padding:[30,30]}); };
+  document.getElementById('pinBtn').onclick=manualPin;
+  document.getElementById('emojiBtn').onclick=toggleEmojiPanel;
+  map.on('click dragstart',()=>closeEmojiPanel());
+  buildEmojiPanel();
+  document.getElementById('leaveBtn').onclick=leave;
+  setTimeout(()=>map.invalidateSize(),50);
+}
 function setFollow(v){ follow=v; document.getElementById('followBtn').classList.toggle('on',v); }
-function manualPin(){}
-function toggleEmojiPanel(){}
-function closeEmojiPanel(){}
-function buildEmojiPanel(){}
-function leave(){}
-function startLocation(){}
-function syncLoop(){}
-function updateHud(){}
-function whenVisited(){}
-function distFromMe(){}
-function nearestSpot(){}
-function pinTo(){}
-function renderMarkers(){}
-function paintCanvases(){}
-function playerIcon(){}
-function initMap(){}
+function playerIcon(p){
+  const stale=Date.now()-p.ts>5*60*1000;
+  return L.divIcon({className:'', html:`<div class="pm ${p.id===me.id?'me':''} ${stale?'stale':''}">${p.id===me.id?'<div class="spark"></div>':''}<canvas width="8" height="8" data-av="${p.av||0}"></canvas>${p.emoji?`<div class="em">${esc(p.emoji)}</div>`:''}<div class="lbl">${esc((p.name||'?').slice(0,10))}</div></div>`, iconSize:[32,44], iconAnchor:[16,32], popupAnchor:[0,-30]});
+}
+function paintCanvases(){ document.querySelectorAll('.pm canvas[data-av]').forEach(c=>{ if(c.dataset.done) return; drawSprite(c.getContext('2d'),CHAR,charPal(+c.dataset.av),0,0,1); c.dataset.done=1; }); }
+function renderMarkers(){
+  const now=Date.now(); const live=new Set();
+  Object.values(players).forEach(p=>{
+    if(p.lat==null||now-p.ts>15*60*1000) return; live.add(p.id);
+    const ll=[p.lat,p.lng];
+    if(!markers[p.id]){
+      markers[p.id]=L.marker(ll,{icon:playerIcon(p),zIndexOffset:p.id===me.id?1000:500}).addTo(map);
+      markers[p.id].bindPopup(()=>{ const ago=Math.round((Date.now()-p.ts)/60000); return `<div class="t">${p.id===me.id?"YOU":"PARTY"}</div>${esc(p.name)}<br><span style="color:#6b5f45">${p.manual?"pinned to a stop":"live GPS"} · ${ago<1?"just now":ago+" min ago"}</span>${p.id!==me.id?distFromMe(p.lat,p.lng):""}<br><span style="color:#6b5f45">${nearestSpot(p.lat,p.lng)}</span>`; });
+    } else { markers[p.id].setLatLng(ll); markers[p.id].setIcon(playerIcon(p)); }
+  });
+  for(const id in markers){ if(!live.has(id)){ map.removeLayer(markers[id]); delete markers[id]; } }
+  paintCanvases();
+}
+function startLocation(){ if(navigator.geolocation){ watchId=navigator.geolocation.watchPosition(pos=>{ me.lat=pos.coords.latitude; me.lng=pos.coords.longitude; me.acc=pos.coords.accuracy; me.ts=Date.now(); if(accCircle) map.removeLayer(accCircle); accCircle=L.circle([me.lat,me.lng],{radius:me.acc,color:'#1b2a44',fill:false,dashArray:'4 4',weight:1,opacity:.4}).addTo(map); if(follow) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),18)); me.manual=null; },e=>{ setStatus("📍 "+ (e.code===1?"Allow location access":"Can't locate")); },{enableHighAccuracy:true,maximumAge:0}); } }
+function syncLoop(){ db.listPlayers().then(ps=>{ for(const p of ps||[]) players[p.id]=p; renderMarkers(); updateHud(); }).catch(e=>{ netOk=false; console.error(e); }).finally(()=>{ setTimeout(syncLoop,2000); }); db.listReactions(lastReactionTs).then(rs=>{ for(const r of rs||[]) seenReactions.has(r.id) ||(lastReactionTs=Math.max(lastReactionTs,r.ts+1), seenReactions.add(r.id), showReaction(r)); }).catch(e=>{ netOk=false; }); if(me.lat!=null) db.upsertPlayer(me).catch(e=>{ netOk=false; }); }
+function updateHud(){ const cnt=Object.keys(players).length; document.getElementById('cnt').textContent=cnt; document.getElementById('netdot').classList.toggle('off',!netOk); const today=new Date().toISOString().slice(0,10); const day=DAYS.find(d=>d.d===today); document.getElementById('hudDay').textContent='Day '+(day?(DAYS.indexOf(day)+1):'-'); }
+function esc(s){ return (s||'').replace(/<script|</g,'_').slice(0,60); }
+function setStatus(s){ document.getElementById('status').textContent=s; }
+function whenVisited(k){ const d=DAYS.find(d=>d.ev.some(e=>e[3]===k)); return d?'Visit: '+d.label:''; }
+function distFromMe(lat,lng){ if(me.lat==null) return ''; const d=Math.sqrt((lat-me.lat)**2+(lng-me.lng)**2)*111; return d<1?'<100m away':d<50?Math.round(d)+'km away':'far away'; }
+function nearestSpot(lat,lng){ let best='?', bestD=1e9; for(const k in SPOTS){ const s=SPOTS[k], d=(lat-s.lat)**2+(lng-s.lng)**2; if(d<bestD) best=s.n, bestD=d; } return 'Near '+best; }
+function manualPin(){ const opts=Object.entries(SPOTS).map(([k,s])=>`<option value="${k}">${s.n}</option>`).join(''); const html=`<select id="pinSelect">${opts}</select><br><button onclick="pinGo()">Pin me</button>`; const d=document.createElement('div'); d.innerHTML=html; const s=document.getElementById('status'); s.innerHTML=''; s.appendChild(d); window.pinGo=()=>{ pinTo(document.getElementById('pinSelect').value); }; }
+function pinTo(k){ const s=SPOTS[k]; me.lat=s.lat; me.lng=s.lng; me.manual=k; me.ts=Date.now(); map.flyTo([me.lat,me.lng],17); renderMarkers(); db.upsertPlayer(me); }
+function toggleEmojiPanel(){ document.getElementById('emojiPanel').classList.toggle('on'); }
+function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); }
+function buildEmojiPanel(){ const sg=document.getElementById('statusGrid'), rg=document.getElementById('reactGrid'); STATUS_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.onclick=()=>{ me.emoji=me.emoji===e?null:e; b.classList.toggle('on'); db.upsertPlayer(me); renderMarkers(); }; sg.appendChild(b); }); const cb=document.createElement('button'); cb.className='clear'; cb.textContent='clear'; cb.onclick=()=>{ me.emoji=null; [...sg.children].forEach(x=>x.classList.remove('on')); db.upsertPlayer(me); renderMarkers(); }; sg.appendChild(cb); REACT_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.onclick=()=>{ db.sendReaction({player_id:me.id,emoji:e,lat:me.lat,lng:me.lng,ts:Date.now()}); showReaction({emoji:e,lat:me.lat,lng:me.lng}); }; rg.appendChild(b); }); }
+function showReaction(r){ const el=document.createElement('div'); el.className='rxn'; el.textContent=r.emoji; if(map.getBounds().contains([r.lat,r.lng])) map.getPane('popupPane').appendChild(el), el.style.left=(map.latLngToLayerPoint([r.lat,r.lng]).x)+'px', el.style.top=(map.latLngToLayerPoint([r.lat,r.lng]).y)+'px', setTimeout(()=>el.remove(),2000); }
+function leave(){ if(confirm('Leave the party?')){ clearSaved(); db.deletePlayer(me.id); location.reload(); } }
+
+/* =========================================================
+   GAMES
+   ========================================================= */
+const GAMES = [{name:"Hunt",page:()=>`<h4>Mission</h4><p>Find challenges on the map. Check in to spots and earn points. Track your progress on the leaderboard.</p><h4>How to play</h4><ul><li>Open map and look for <b>!Hunt</b> markers nearby</li><li>Tap a marker and read the challenge</li><li>Complete the mission (take a photo, answer a trivia, etc.)</li><li>Check in by tapping "I solved this"</li><li>Earn 10-30 points per challenge</li><li>Compete on the leaderboard</li></ul><h4>Tips</h4><ul><li>Check in at Fushimi Inari, Kiyomizu, Arima Onsen for bonus points</li><li>Find all challenges at a spot for a site bonus +50</li><li>Challenges reset daily</li></ul>`},{name:"Race",page:()=>`<h4>Mission</h4><p>Race around Kansai and check in at every major stop on our itinerary. Fastest team wins!</p><h4>How to play</h4><ul><li>Open the <b>Race</b> tab to see today's destination</li><li>Travel there (walking, bus, taxi—any way you can)</li><li>Hit "Check in" when you arrive</li><li>Server records your arrival time</li><li>Move to the next stop the next day</li></ul><h4>Leaderboard</h4><p>Times are compared by party arrival, so <b>coordinate travel</b> to beat other teams. Travel in groups, split up, whatever works for you.</p>`},{name:"Trivia",page:()=>`<h4>Mission</h4><p>Answer daily questions about Japan, Kansai history, and the Nexstream trip. Test your knowledge and climb the leaderboard.</p><h4>How to play</h4><ul><li>Open the <b>Trivia</b> tab to see 3 questions for today</li><li>Each question has 4 choices</li><li>You get 10 points for a correct answer</li><li>Questions are the same for everyone, but rotate each day</li><li>Submit your answers before midnight</li></ul><h4>Topics</h4><p>Questions will cover: Japanese culture, regional history, Kobe & Osaka, temples & shrines, Kansai slang, company trivia.</p>`},{name:"Arcade",page:()=>`<h4>Mission</h4><p>Play <b>Deer Dash</b>—a retro-style pixel runner. Collect food, avoid obstacles, reach the highest score.</p><h4>How to play</h4><ul><li>Tap <b>Play Arcade</b> to start Deer Dash</li><li>Use arrow keys (or swipe on mobile) to jump and duck</li><li>Collect sashimi, mochi, dango for +5 points</li><li>Hit obstacles (cars, signposts) and lose 10 points</li><li>Survive as long as possible</li><li>High scores upload automatically</li></ul><h4>Pro Tips</h4><ul><li>Tap the jump button twice to do a double-jump</li><li>Stay on ground for faster ground-slide</li><li>Watch the score multiplier—collect 3 foods in a row for 2x points</li></ul>`}];
+document.getElementById('openGames').onclick=()=>{ const g=document.getElementById('games'); g.classList.add('on'); const t=document.getElementById('gtabs'), p=document.getElementById('gamePage'); t.innerHTML=''; p.innerHTML=''; GAMES.forEach((gm,i)=>{ const b=document.createElement('button'); b.textContent=gm.name; b.className=i===0?'on':''; b.onclick=()=>{ [...t.children].forEach(x=>x.classList.remove('on')); b.classList.add('on'); p.innerHTML=gm.page(); }; t.appendChild(b); }); p.innerHTML=GAMES[0].page(); };
+document.getElementById('closeGames').onclick=()=>{ document.getElementById('games').classList.remove('on'); };
+
+/* =========================================================
+   HANDBOOK
+   ========================================================= */
+const HANDBOOK = [
+  {title:"Trip Overview",page:()=>{const today=new Date().toISOString().slice(0,10); const dayIdx=DAYS.findIndex(d=>d.d===today); return `<h4>Nexstream Kansai Quest 2026</h4><p><b>29 Sep – 4 Oct</b> | Kyoto · Kobe · Nara · Osaka</p><p>This is an interactive map game where your real-world location drives the leaderboard. Find your party, read the handbook, and don't miss the bus.</p><div class="daysel">${DAYS.map((d,i)=>`<button class="${i===dayIdx?'on today':i<dayIdx?'done':''}">${d.label}</button>`).join('')}</div><h4>Quick Links</h4><ul><li><b>Games tab:</b> Hunt, Race, Trivia, Arcade</li><li><b>Handbook tabs:</b> Itinerary, Items, Handbook</li><li><b>Status emoji:</b> Tell everyone what you're doing</li><li><b>Reactions:</b> Celebrate with floaty emoji animations</li></ul>`;}},
+  {title:"Itinerary",page:()=>{const today=new Date().toISOString().slice(0,10); const d=DAYS.find(dy=>dy.d===today)||DAYS[0]; return `<h4>${d.label}: ${d.title}</h4><div class="tl">${d.ev.map(e=>`<div class="ev"><span class="tm">${e[0]}</span> <span class="nm">${e[1]}</span> ${e[2]?'<span class="ds">' + e[2] + '</span>':''} ${e[3]?'<button class="go" onclick="pinTo(\\''+e[3]+'\\')">📍</button>':''}</div>`).join('')}</div>`;}},
+  {title:"Items & Art",page:()=>`<h4>38-piece pixel art</h4><p>A complete visual encyclopedia of the trip—every food, landmark, and adventure captured in 16×16 retro style.</p><div class="art-hero">${['backpack','passport','plug','iccard','esim','umbrella','shoes','shopbag','camera'].map(k=>`<div class="art-tile">${art(k)}<span>${k}</span></div>`).join('')}</div><div class="art-hero">${['ramen','takoyaki','okonomiyaki','dango','mochi','melonpan','sushi','onigiri','beercan'].map(k=>`<div class="art-tile">${art(k)}<span>${k}</span></div>`).join('')}</div><div class="art-hero">${['cancoffee','matcha','softserve','strawsando','tamagoyaki','kakinoha','famichiki','kobeskewer','porkbun'].map(k=>`<div class="art-tile">${art(k)}<span>${k}</span></div>`).join('')}</div><div class="art-hero">${['yencoin','yennote','konbini','vending','senbei','dango','flower','deer'].map(k=>k==='flower'||k==='flower'?'':art(k)).filter(Boolean).map(a=>'<div class="art-tile">'+a+'<span></span></div>').join('')}</div>`},
+  {title:"Essentials",page:()=>`<div class="kon"><div class="k"><div class="kn">Travel docs</div><ul><li>Passport + return flight tickets</li><li>Travel insurance card</li><li>Luggage tags (for checked bags)</li></ul></div><div class="k"><div class="kn">Cash & cards</div><ul><li>Malaysian Ringgit (MYR)</li><li>Japanese Yen (JPY) ~150,000</li><li>Credit/debit card (Visa/Mastercard)</li><li>IC card for transport</li></ul></div><div class="k"><div class="kn">Phone & connectivity</div><ul><li>SIM card or eSIM (SoftBank recommended)</li><li>Portable power bank</li><li>USB-C cable + adapter</li><li>Google Maps offline map (download now)</li></ul></div><div class="k"><div class="kn">Luggage</div><ul><li>Daypack (15–20L)</li><li>Comfortable walking shoes</li><li>Weather: Sep–Oct is warm & humid</li><li>Light layers (temples require long sleeves)</li></ul></div><div class="k"><div class="kn">Medications & toiletries</div><ul><li>Prescription meds (bring enough)</li><li>First-aid kit basics</li><li>Sunscreen & insect repellent</li><li>Japanese pharmacies widely available</li></ul></div><div class="k"><div class="kn">Cultural tips</div><ul><li>Remove shoes indoors (temples, homes)</li><li>Bow slightly when greeting</li><li>Say "itadakimasu" before meals</li><li>Respect temple etiquette & quiet zones</li></ul></div></div>`},
+  {title:"Kansai 101",page:()=>`<h4>Kyoto — The Cultural Heart</h4><p>Over 1,000 years of temple history. Fushimi Inari has 10,000+ torii gates. Walk Sannenzaka's wooden-fronted shops for classic Kyoto vibes. Cherry blossoms (spring) and autumn colors peak here.</p><h4>Kobe — The Gateway Port</h4><p>Modern harbor meets mountain views. Kobe beef is world-famous (yes, it's worth the splurge). Arima Onsen, perched in the mountains north of Kobe, is Japan's oldest hot spring. Perfect for unwinding.</p><h4>Nara — The Deer Park Paradise</h4><p>Roaming sika deer bow for crackers. Todai-ji's Great Buddha is colossal. Less crowded than Kyoto; easier to walk and explore freely.</p><h4>Osaka — The Food Capital</h4><p>Takoyaki (octopus balls), okonomiyaki (savory pancakes), ramen—if it's fried or chewy, it's here. Osaka Castle is iconic. Dotonbori district buzzes with neon and noise.</p><h4>Language & Etiquette</h4><ul><li><b>Greetings:</b> "Konnichiwa" (hello), "Arigatou gozaimasu" (thank you very much)</li><li><b>Polite phrases:</b> "Sumimasen" (excuse me), "Eigo wa hanasemasu ka?" (Do you speak English?)</li><li><b>Temple behavior:</b> Quiet, respectful, no photos in certain areas</li><li><b>Train etiquette:</b> Stand on the left in Kansai (opposite of Tokyo)</li><li><b>Tipping:</b> Not expected; rounding up is polite</li></ul>`},
+];
+const handbook={};  HANDBOOK.forEach((p,i)=>{ handbook[p.title]=p.page; });
+document.getElementById('openBook').onclick=()=>{ const b=document.getElementById('book'); b.classList.add('on'); const t=document.getElementById('tabs'), p=document.getElementById('page'); t.innerHTML=''; p.innerHTML=''; HANDBOOK.forEach((hb,i)=>{ const btn=document.createElement('button'); btn.textContent=hb.title; btn.className=i===0?'on':''; btn.onclick=()=>{ [...t.children].forEach(x=>x.classList.remove('on')); btn.classList.add('on'); p.innerHTML=hb.page(); }; t.appendChild(btn); }); p.innerHTML=HANDBOOK[0].page(); };
+document.getElementById('closeBook').onclick=()=>{ document.getElementById('book').classList.remove('on'); };
+
+/* =========================================================
+   STARTUP
+   ========================================================= */
 if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
 </script>
 </body>
