@@ -120,6 +120,8 @@ async function chatPost(m){
     m.pending=false;
   }catch(e){
     console.warn('chat send',e); m.pending=false; m.failed=true;
+    // the log now reads "not sent" — don't leave our own card claiming otherwise
+    if(typeof trayEchoClear==='function') trayEchoClear(m.player_id,m.body);
   }
   chatRender();
 }
@@ -160,7 +162,7 @@ function chatClock(ts){
 
 /* toast bubble — sits over the map and over the games / handbook overlays */
 function chatPop(m){
-  if(typeof trayEchoSay==='function') trayEchoSay(m.player_id,m.body);   // and on the speaker's NEARBY card
+  if(typeof trayEchoSay==='function') trayEchoSay(m.player_id,m.body,m.ts);   // and on the speaker's NEARBY card, unless it is backlog
   const wrap=document.getElementById('chatPops'); if(!wrap) return;
   const d=document.createElement('div');
   d.className='cpop';

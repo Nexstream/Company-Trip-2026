@@ -685,7 +685,7 @@ async function sendReaction(emoji){
   try{ await db.sendReaction(r); }catch(e){ console.warn(e); }
 }
 function popReaction(r){
-  trayEchoReact(r.player_id,r.emoji);   // before the map guard — the card echoes even without a fix
+  trayEchoReact(r.player_id,r.emoji);   // one hook covers both our own reaction and everyone else's
   const lat=r.lat??players[r.player_id]?.lat, lng=r.lng??players[r.player_id]?.lng; if(lat==null||!map) return;
   const m=L.marker([lat,lng],{icon:L.divIcon({className:'',html:`<div class="rxn">${esc(r.emoji)}</div>`,iconSize:[40,40],iconAnchor:[20,60]}),interactive:false,zIndexOffset:2000}).addTo(map);
   setTimeout(()=>map.removeLayer(m),2100);
@@ -706,19 +706,35 @@ function renderAll(){ renderMarkers(); renderTray(); updateNext(); }
    "who is talking", not just "who is near". State lives in trayEcho and is rendered
    by renderTray(); the timer only schedules the re-render that clears it. */
 const TRAY_ECHO_MS={say:8000, rx:4000};
+const TRAY_ECHO_FRESH=250;             // how long a bubble is still "new enough" to play its entrance
 const trayEcho={};
+function trayEchoText(t){ return String(t||'').trim().slice(0,120); }
 function trayEchoSet(id,kind,text){
   if(!id||!text) return;
   const prev=trayEcho[id]; if(prev) clearTimeout(prev.timer);   // a second message must not be cut short by the first one's timer
-  const ms=TRAY_ECHO_MS[kind]||TRAY_ECHO_MS.say;
-  trayEcho[id]={kind,text:String(text),until:Date.now()+ms,timer:setTimeout(()=>{ delete trayEcho[id]; renderTray(); },ms)};
+  const ms=TRAY_ECHO_MS[kind]||TRAY_ECHO_MS.say, at=Date.now();
+  trayEcho[id]={kind,text:String(text),at,until:at+ms,timer:setTimeout(()=>{ delete trayEcho[id]; renderTray(); },ms)};
   renderTray();
 }
-function trayEchoSay(id,body){ trayEchoSet(id,'say',String(body||'').trim().slice(0,120)); }
+function trayEchoSay(id,body,ts){
+  // Joining replays up to CHAT_BACKLOG of history through chatPop(); a line from
+  // nine minutes ago must not land on a card as though it were just said.
+  if(ts!=null&&Date.now()-ts>TRAY_ECHO_MS.say) return;
+  trayEchoSet(id,'say',trayEchoText(body));
+}
 function trayEchoReact(id,emoji){ trayEchoSet(id,'rx',emoji); }
+function trayEchoClear(id,text){
+  const e=trayEcho[id]; if(!e) return;
+  if(text!=null&&e.text!==trayEchoText(text)) return;   // a newer line already replaced it — leave that one alone
+  clearTimeout(e.timer); delete trayEcho[id]; renderTray();
+}
 function trayEchoHtml(id){
   const e=trayEcho[id]; if(!e||e.until<=Date.now()) return "";
-  return `<div class="echo${e.kind==='rx'?' rx':''}">${esc(e.text)}</div>`;
+  // renderTray() rebuilds every card on each poll and each GPS fix — roughly once a
+  // second while walking — so the entrance animation may only play on the repaint
+  // that first shows the bubble, or it blinks and jumps for its whole lifetime.
+  const anim=Date.now()-e.at<TRAY_ECHO_FRESH?'':' style="animation:none"';
+  return `<div class="echo${e.kind==='rx'?' rx':''}"${anim}>${esc(e.text)}</div>`;
 }
 
 function renderTray(){
