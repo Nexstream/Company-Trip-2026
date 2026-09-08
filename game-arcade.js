@@ -42,11 +42,15 @@ function arcadeSetBest(v){ try{ localStorage.setItem(arcadeBestKey(), String(v))
 function renderArcade(){
   return `
 <style>
-  .arcade-wrap{max-width:480px;margin:0 auto;padding:10px 8px 16px;font-family:'VT323','Courier New',monospace;color:#f3e8cf}
+  .arcade-wrap{max-width:560px;margin:0 auto;padding:10px 8px 16px;font-family:'VT323','Courier New',monospace;color:#f3e8cf;
+    min-height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;
+    justify-content:flex-start;justify-content:safe center}
   .arcade-stage{position:relative;width:100%;border:4px solid #c9a24a;box-shadow:0 0 0 4px #122036,5px 5px 0 rgba(0,0,0,.5);background:#7fb3e0}
   .arcade-stage canvas{display:block;width:100%;height:auto;aspect-ratio:${ARCADE_W}/${ARCADE_H};image-rendering:pixelated;touch-action:none;user-select:none;background:#7fb3e0}
-  .arcade-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
-    background:rgba(18,32,54,.93);padding:14px;text-align:center;overflow-y:auto}
+  .arcade-wrap [hidden]{display:none!important}
+  .arcade-overlay{position:relative;width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    border:4px solid #c9a24a;box-shadow:0 0 0 4px #122036,5px 5px 0 rgba(0,0,0,.5);
+    background:#1b2a44;padding:18px 14px;text-align:center;margin:0 0 12px}
   .arcade-h1{font-family:'Press Start 2P',monospace;font-size:16px;color:#c9a24a;line-height:1.6;margin-bottom:8px}
   .arcade-how{font-size:16px;color:#b9c3d6;margin-bottom:10px;max-width:34ch}
   .arcade-best{font-size:15px;color:#f3e8cf;margin-bottom:10px}
@@ -65,36 +69,35 @@ function renderArcade(){
   .arcade-row .arcade-nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
   .arcade-row .arcade-sc{color:#c9a24a}
   .arcade-empty{font-size:15px;color:#b9c3d6;padding:8px}
-  .arcade-overlay[hidden],.arcade-hud[hidden]{display:none!important}
   .arcade-hud{position:absolute;left:0;top:0;right:0;display:flex;justify-content:space-between;padding:6px 8px;
     font-family:'Press Start 2P',monospace;font-size:11px;color:#f3e8cf;background:rgba(18,32,54,.55);pointer-events:none}
-  .arcade-ctrl{display:flex;justify-content:center;margin-top:10px}
+  .arcade-ctrl{display:flex;justify-content:center;width:100%;margin-top:10px}
   .arcade-duck{font-family:'Press Start 2P',monospace;font-size:12px;padding:14px 26px;border:4px solid #8e6f2a;
     background:#1b2a44;color:#c9a24a;box-shadow:4px 4px 0 rgba(0,0,0,.5);touch-action:none;user-select:none}
   .arcade-duck:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(0,0,0,.5);background:#2a3a5a}
   .arcade-note{font-size:13px;color:#b9c3d6;margin-top:6px}
 </style>
 <div class="arcade-wrap">
-  <div class="arcade-stage" id="arcadeStage">
+  <div class="arcade-stage" id="arcadeStage" hidden>
     <canvas id="arcadeCanvas"></canvas>
     <div class="arcade-hud" id="arcadeHud" hidden><span>SCORE <span id="arcadeScoreVal">0</span></span><span id="arcadeSpeedVal"></span></div>
-    <div class="arcade-overlay" id="arcadeStartScreen">
-      <div class="arcade-h1">DEER DASH</div>
-      <div class="arcade-how">TAP / SPACE = jump &middot; hold DUCK or swipe down = duck &middot; grab senbei for bonus points</div>
-      <div class="arcade-best">Your best: <b id="arcadeBestVal">0</b></div>
-      <button class="arcade-btn" id="arcadeStartBtn">START</button>
-      <div class="arcade-board" id="arcadeBoardStart"><div class="arcade-bh">TOP TRAVELLERS</div><div class="arcade-empty">Loading…</div></div>
-    </div>
-    <div class="arcade-overlay" id="arcadeOverScreen" hidden>
-      <div class="arcade-h1">RUN OVER</div>
-      <div class="arcade-score-row">SCORE <span id="arcadeFinalScore">0</span></div>
-      <div class="arcade-score-row gold" id="arcadeNewBest" hidden>NEW BEST!</div>
-      <div class="arcade-note" id="arcadeSaveNote"></div>
-      <button class="arcade-btn" id="arcadeAgainBtn">PLAY AGAIN</button>
-      <div class="arcade-board" id="arcadeBoardOver"><div class="arcade-bh">TOP TRAVELLERS</div><div class="arcade-empty">Loading…</div></div>
-    </div>
   </div>
-  <div class="arcade-ctrl">
+  <div class="arcade-overlay" id="arcadeStartScreen">
+    <div class="arcade-h1">DEER DASH</div>
+    <div class="arcade-how">TAP / SPACE = jump &middot; hold DUCK or swipe down = duck &middot; grab senbei for bonus points</div>
+    <div class="arcade-best">Your best: <b id="arcadeBestVal">0</b></div>
+    <button class="arcade-btn" id="arcadeStartBtn">START</button>
+    <div class="arcade-board" id="arcadeBoardStart"><div class="arcade-bh">TOP TRAVELLERS</div><div class="arcade-empty">Loading…</div></div>
+  </div>
+  <div class="arcade-overlay" id="arcadeOverScreen" hidden>
+    <div class="arcade-h1">RUN OVER</div>
+    <div class="arcade-score-row">SCORE <span id="arcadeFinalScore">0</span></div>
+    <div class="arcade-score-row gold" id="arcadeNewBest" hidden>NEW BEST!</div>
+    <div class="arcade-note" id="arcadeSaveNote"></div>
+    <button class="arcade-btn" id="arcadeAgainBtn">PLAY AGAIN</button>
+    <div class="arcade-board" id="arcadeBoardOver"><div class="arcade-bh">TOP TRAVELLERS</div><div class="arcade-empty">Loading…</div></div>
+  </div>
+  <div class="arcade-ctrl" id="arcadeCtrl" hidden>
     <button class="arcade-duck" id="arcadeDuckBtn">&#9660; DUCK</button>
   </div>
 </div>`;
@@ -177,7 +180,13 @@ function arcadeShowScreen(name){
   st.screen = name;
   root.querySelector('#arcadeStartScreen').hidden = name!=='start';
   root.querySelector('#arcadeOverScreen').hidden = name!=='over';
+  root.querySelector('#arcadeStage').hidden = name!=='playing';
   root.querySelector('#arcadeHud').hidden = name!=='playing';
+  root.querySelector('#arcadeCtrl').hidden = name!=='playing';
+  // the canvas sits inside .arcade-stage, which is `hidden` (display:none) whenever
+  // a panel is up — re-measure/resize now that it's back in flow, so it never
+  // renders into a stale/zero-size buffer.
+  if(name==='playing') arcadeResizeCanvas();
 }
 
 /* ---------------- game control ---------------- */
