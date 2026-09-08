@@ -51,8 +51,17 @@
   #game{display:none; height:100%; position:relative}
   #game.on{display:block}
   #map{position:absolute; inset:0; background:#9fc3e6; z-index:1}
-  /* Pokemon-Go-ish tile treatment */
-  .leaflet-tile-pane{filter:saturate(1.35) contrast(1.08) brightness(1.03)}
+  /* Tile treatment, deliberately muted: the basemap is the backdrop, the trip route
+     is the subject. This used to be saturate(1.35) contrast(1.08), which is exactly
+     what swallowed the route into OSM's own road and terrain colours — don't crank it
+     back up without re-checking that the route still reads over central Kyoto/Osaka.
+     Scoped to the tile pane, so markers, route and popups keep full saturation. */
+  .leaflet-tile-pane{filter:saturate(.55) brightness(1.06) contrast(.95)}
+  /* Marching ants along the transit legs. The offset must equal the dashArray sum
+     (10 + 14 = 24) or the loop visibly jumps every repeat. Gated on reduced-motion
+     like the ME marker's bob — with the crawl off, a transit leg still reads as a
+     transit leg, because the dashes themselves are the cue, not their movement. */
+  @media (prefers-reduced-motion:no-preference){ .routeflow{animation:routeAnts 1.4s linear infinite} @keyframes routeAnts{from{stroke-dashoffset:0} to{stroke-dashoffset:-24}} }
   .leaflet-control-attribution{font-family:'VT323','Courier New',monospace; font-size:13px; background:rgba(243,232,207,.85)}
   .leaflet-control-zoom a{font-family:'Press Start 2P',monospace; font-size:12px; border-radius:0!important; background:var(--navy); color:var(--gold); border:2px solid var(--gold)!important}
   .leaflet-bar{border:none; border-radius:0}
@@ -645,10 +654,35 @@ function initMap(){
     if(walked && walked.length>=2) walkSegs.push(walked);
     else transitSegs.push([[SPOTS[a].lat,SPOTS[a].lng],[SPOTS[b].lat,SPOTS[b].lng]]);
   }
-  const allSegs=[...transitSegs,...walkSegs];
-  if(allSegs.length) L.polyline(allSegs,{color:'#1b2a44',weight:5,opacity:.55}).addTo(map);
-  if(transitSegs.length) L.polyline(transitSegs,{color:'#c9a24a',weight:3,dashArray:'6 8',opacity:.95}).addTo(map);
-  if(walkSegs.length) L.polyline(walkSegs,{color:'#c9a24a',weight:3,opacity:.95}).addTo(map);
+  // Each leg is drawn three times so the ribbon reads at any zoom: a cream casing lifts
+  // it off the map like a sticker outline, a red core carries it (the app accent, and the
+  // one colour OSM never uses for roads), and the gold overlay keeps the ribbon's original
+  // colour on top. The old navy-under-gold pair sat at the same weight and tone as an OSM
+  // trunk road and disappeared into it.
+  //
+  // Casing and core are stroked per group, never over both groups at once: a solid core
+  // under the dashed gold would fill the dashes' gaps back in with red and make a train
+  // hop look exactly like a walked path, which is the one distinction this ribbon exists
+  // to draw. So the whole transit stack is dashed, and all three of its layers share the
+  // dashArray and the .routeflow class to stay in phase while they crawl. Butt caps are
+  // load-bearing there: a round cap extends every dash by half the stroke weight at both
+  // ends, which on the weight-10 casing would swallow the gaps it needs to show.
+  //
+  // interactive:false because these paths have no popup or click handler, so hit-testing
+  // and cursor:pointer along four long strokes is pure cost. (It is *not* needed to keep
+  // map clicks working — Leaflet's _findEventTargets only treats a layer as a target when
+  // it listens for the event, so a handler-less path never consumes the map's own click.)
+  const CASE={color:'#f3e8cf',weight:10,opacity:.9,interactive:false};
+  const CORE={color:'#c8442b',weight:5,opacity:1,interactive:false};
+  const GOLD={color:'#c9a24a',weight:3,opacity:1,interactive:false};
+  const SOLID={lineCap:'round',lineJoin:'round'};                                 // walked
+  const DASHED={dashArray:'10 14',lineCap:'butt',className:'routeflow'};          // carried
+  // Outermost layer first, and both groups at each depth, so no group's casing paints over
+  // another group's core where a walked leg meets a transit hop at a shared stop.
+  for(const layer of [CASE,CORE,GOLD]){
+    if(transitSegs.length) L.polyline(transitSegs,{...layer,...DASHED}).addTo(map);
+    if(walkSegs.length)    L.polyline(walkSegs,{...layer,...SOLID}).addTo(map);
+  }
   // landmarks
   for(const k in SPOTS){
     const s=SPOTS[k];
