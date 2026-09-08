@@ -12,7 +12,7 @@
      startGame() -> initMap() for a returning player before any of the bottom module tags
      have run, so ROUTE_WALK has to already exist by then or the footpath ribbon silently
      never appears for the common case of a saved name in localStorage. -->
-<script src="route.js?v=20260908g"></script>
+<script src="route.js?v=20260909a"></script>
 <style>
   :root{
     --navy:#1b2a44; --navy2:#122036; --gold:#c9a24a; --gold2:#8e6f2a;
@@ -255,6 +255,24 @@
   .tl .ds{color:#6b5f45; font-size:18px}
   .tl .go{font-size:16px; margin-left:8px; color:#fff; background:var(--navy); padding:1px 6px; border:none}
   .tl .fly{font-size:16px; margin-left:6px; color:var(--ink); background:var(--gold); padding:1px 6px; border:none}
+  .tl .spotlink{background:none; border:none; font:inherit; font-weight:bold; color:var(--ink); text-decoration:underline dotted; padding:0; text-align:left; cursor:pointer}
+  .tl .sinfo{font-size:16px; margin-left:6px; padding:1px 6px; border:none; background:var(--red); color:#fff}
+  .spotnav{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  .spotnav button{font-family:'Press Start 2P',monospace; font-size:8px; padding:8px 10px; border:3px solid var(--ink)}
+  .spotnav .spotback{background:var(--cream); color:var(--ink)}
+  .spotnav .fly{background:var(--gold); color:var(--ink)}
+  .spotnav .go{background:var(--navy); color:#fff}
+  .spotback{font-family:'Press Start 2P',monospace; font-size:8px; padding:8px 10px; border:3px solid var(--ink); background:var(--cream); color:var(--ink)}
+  .page>.spotback{margin-top:10px}
+  .spothead{display:flex; align-items:center; gap:10px; border-bottom:3px solid var(--ink); padding-bottom:10px; margin-bottom:12px}
+  .spothead .art-ev-ic{width:40px; height:40px; margin:0}
+  .spothead h4{margin:0}
+  .spotmeta{font-size:18px; color:#6b5f45; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px}
+  .spotdist{color:var(--red)}
+  .sinear li, .sistops li{margin-bottom:8px}
+  .siw{font-family:'Press Start 2P',monospace; font-size:8px; background:var(--cream); border:2px solid var(--ink); padding:2px 5px; margin-left:6px}
+  .sistops .fly{font-size:16px; margin-left:8px; padding:1px 6px; border:none; background:var(--gold); color:var(--ink)}
+  .page .ds{color:#6b5f45; font-size:18px}
   .kon{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin-bottom:14px}
   .kon .k{border:3px solid var(--ink); padding:10px 12px; background:var(--cream)}
   .kon .k .kn{font-family:'Press Start 2P',monospace; font-size:9px; margin-bottom:6px}
@@ -975,28 +993,31 @@ const TABS = [
   {id:'stay', label:'Flights & hotels', render:()=>renderStay()},
   {id:'pack', label:'Pack list', render:()=>renderPack()},
 ];
-let tab='itin', dayView=Math.max(0,todayIdx()>=0?todayIdx():1);
+let tab='itin', dayView=Math.max(0,todayIdx()>=0?todayIdx():1), spotView=null;
 const tabsEl=document.getElementById('tabs');
-TABS.forEach(t=>{ const b=document.createElement('button'); b.textContent=t.label; b.onclick=()=>{tab=t.id; renderBook();}; b.dataset.id=t.id; tabsEl.appendChild(b); });
-document.getElementById('openBook').onclick=()=>{ document.getElementById('book').classList.add('on'); renderBook(); };
+TABS.forEach(t=>{ const b=document.createElement('button'); b.textContent=t.label; b.onclick=()=>{tab=t.id; spotView=null; renderBook();}; b.dataset.id=t.id; tabsEl.appendChild(b); });
+document.getElementById('openBook').onclick=()=>{ document.getElementById('book').classList.add('on'); spotView=null; renderBook(); };
 document.getElementById('closeBook').onclick=()=>document.getElementById('book').classList.remove('on');
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.getElementById('book').classList.remove('on'); });
 
 function renderBook(){
   [...tabsEl.children].forEach(b=>b.classList.toggle('on',b.dataset.id===tab));
   document.getElementById('page').innerHTML = TABS.find(t=>t.id===tab).render();
-  document.querySelectorAll('.daysel button').forEach(b=>b.onclick=()=>{dayView=+b.dataset.i; renderBook();});
+  document.querySelectorAll('.daysel button').forEach(b=>b.onclick=()=>{dayView=+b.dataset.i; spotView=null; renderBook();});
   document.querySelectorAll('.go').forEach(b=>b.onclick=()=>pinTo(b.dataset.k));
   document.querySelectorAll('.fly').forEach(b=>b.onclick=()=>{ const s=SPOTS[b.dataset.k]; setFollow(false); map.flyTo([s.lat,s.lng],16,FLY_OPTS); document.getElementById('book').classList.remove('on'); });
+  document.querySelectorAll('.spotlink,.sinfo').forEach(b=>b.onclick=()=>{ spotView=b.dataset.k; renderBook(); });
+  document.querySelectorAll('.spotback').forEach(b=>b.onclick=()=>{ spotView=null; renderBook(); });
   if(tab==='pack' && typeof ckOnPackShown==='function') ckOnPackShown();
 }
 function renderItin(){
+  if(spotView && SPOTS[spotView] && typeof renderSpotDetail==='function') return renderSpotDetail(spotView);
   const ti=todayIdx();
   let h='<div class="daysel">'+DAYS.map((d,i)=>`<button data-i="${i}" class="${i===dayView?'on':''} ${i===ti?'today':''}">${d.label}</button>`).join('')+'</div>';
   const d=DAYS[dayView];
   h+=`<h4>${d.label} · ${fmtDate(d.d)} — ${d.title}</h4><div class="tl">`;
-  d.ev.forEach(e=>{ const ic=e[3]?`<img class="art-ev-ic" src="${ICON_URL[SPOTS[e[3]].icon]||ICON_URL.temple}" alt="">`:""; h+=`<div class="ev"><span class="tm">${e[0]}</span>${ic}<span class="nm">${esc(e[1])}</span>${e[3]?`<button class="fly" data-k="${e[3]}">Map</button><button class="go" data-k="${e[3]}">I am here</button>`:""}${e[2]?`<div class="ds">${esc(e[2])}</div>`:""}</div>`; });
-  h+=`</div><p class="ds" style="color:#6b5f45;font-size:18px">Tap "Map" to see a stop, or "I am here" to pin yourself to a stop when GPS is off. Agree on a time and place to regroup before any free & easy session.</p>`;
+  d.ev.forEach(e=>{ const ic=e[3]?`<img class="art-ev-ic" src="${ICON_URL[SPOTS[e[3]].icon]||ICON_URL.temple}" alt="">`:""; const name=e[3]?`<button class="spotlink nm" data-k="${e[3]}">${esc(e[1])}</button>`:`<span class="nm">${esc(e[1])}</span>`; h+=`<div class="ev"><span class="tm">${e[0]}</span>${ic}${name}${e[3]?`<button class="fly" data-k="${e[3]}">Map</button><button class="go" data-k="${e[3]}">I am here</button><button class="sinfo" data-k="${e[3]}">Info</button>`:""}${e[2]?`<div class="ds">${esc(e[2])}</div>`:""}</div>`; });
+  h+=`</div><p class="ds" style="color:#6b5f45;font-size:18px">Tap a stop's name or "Info" for what's there and what's nearby. "Map" flies to it; "I am here" pins you to it when GPS is off. Agree on a time and place to regroup before any free & easy session.</p>`;
   return h;
 }
 function fmtDate(iso){ const d=new Date(iso+"T00:00:00"); return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); }
@@ -1063,14 +1084,14 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      keep serving a stale module after index.html has updated, which looks exactly
      like "the new feature didn't ship". Bump it on every deploy that changes a
      module. -->
-<script src="art.js?v=20260908g"></script>
-<script src="checklist.js?v=20260908g"></script>
-<script src="handbook.js?v=20260908g"></script>
-<script src="game-hunt.js?v=20260908g"></script>
-<script src="game-race.js?v=20260908g"></script>
-<script src="game-trivia.js?v=20260908g"></script>
-<script src="game-arcade.js?v=20260908g"></script>
-<script src="game-sushi.js?v=20260908g"></script>
-<script src="chat.js?v=20260908g"></script>
+<script src="art.js?v=20260909a"></script>
+<script src="checklist.js?v=20260909a"></script>
+<script src="handbook.js?v=20260909a"></script>
+<script src="game-hunt.js?v=20260909a"></script>
+<script src="game-race.js?v=20260909a"></script>
+<script src="game-trivia.js?v=20260909a"></script>
+<script src="game-arcade.js?v=20260909a"></script>
+<script src="game-sushi.js?v=20260909a"></script>
+<script src="chat.js?v=20260909a"></script>
 </body>
 </html>
