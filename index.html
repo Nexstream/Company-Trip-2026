@@ -12,7 +12,7 @@
      startGame() -> initMap() for a returning player before any of the bottom module tags
      have run, so ROUTE_WALK has to already exist by then or the footpath ribbon silently
      never appears for the common case of a saved name in localStorage. -->
-<script src="route.js?v=20260909a"></script>
+<script src="route.js?v=20260909b"></script>
 <style>
   :root{
     --navy:#1b2a44; --navy2:#122036; --gold:#c9a24a; --gold2:#8e6f2a;
@@ -46,6 +46,10 @@
   .btn.ghost{background:var(--navy2); color:var(--gold)}
   .note{font-size:17px; color:#b9c3d6; margin-top:14px}
   .note b{color:var(--gold)}
+  #linkTitleToggle{background:none; border:none; padding:0; color:var(--gold); font-size:inherit; font-family:inherit; text-decoration:underline}
+  #linkTitleField{margin-top:14px}
+  #linkTitleField .btn{margin-top:10px; padding:9px 14px; font-size:10px}
+  #linkTitleMsg{margin-top:8px; font-size:15px}
 
   /* game */
   #game{display:none; height:100%; position:relative}
@@ -196,6 +200,23 @@
   #chatForm input:focus{border-color:var(--red)}
   #chatForm button{padding:8px 10px; font-size:9px; border-width:3px; box-shadow:2px 2px 0 var(--navy2)}
 
+  /* link device */
+  #linkPanel{position:absolute; right:66px; bottom:calc(var(--trayh,140px) + 10px); z-index:600; display:none; width:min(340px,calc(100vw - 90px)); padding:10px;
+    background:rgba(27,42,68,.97); border:3px solid var(--gold); box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+  #linkPanel.on{display:flex; flex-direction:column; gap:12px}
+  #linkPanel .ch{display:flex; align-items:center; justify-content:space-between; font-family:'Press Start 2P',monospace; font-size:8px; color:var(--gold)}
+  #linkPanel .ch button{background:none; border:none; color:#b9c3d6; font-size:22px; line-height:1; padding:0 4px}
+  #linkPanel .eh{font-family:'Press Start 2P',monospace; font-size:8px; color:var(--gold); margin-bottom:6px}
+  #linkPanel .note{font-size:15px; margin-top:6px}
+  #linkCodeRow{display:flex; align-items:center; gap:8px}
+  #linkMyCode{flex:1; min-width:0; padding:8px 10px; font-family:'VT323','Courier New',monospace; font-size:22px; letter-spacing:1px; color:var(--gold);
+    background:var(--navy2); border:2px solid var(--gold2); overflow-wrap:anywhere; user-select:all}
+  #linkCodeRow .btn{padding:8px 10px; font-size:9px; border-width:3px; box-shadow:2px 2px 0 var(--navy2)}
+  #linkForm{display:flex; gap:6px}
+  #linkForm input{flex:1; min-width:0; padding:7px 8px; font-family:'VT323','Courier New',monospace; font-size:19px; background:var(--cream); color:var(--ink); border:3px solid var(--gold2); outline:none}
+  #linkForm input:focus{border-color:var(--red)}
+  #linkForm button{padding:8px 10px; font-size:9px; border-width:3px; box-shadow:2px 2px 0 var(--navy2)}
+
   /* chat bubbles: toast stack (visible over the games/handbook overlays too) */
   #chatPops{position:fixed; left:12px; right:70px; bottom:calc(var(--trayh,0px) + 12px); z-index:1200;
     display:flex; flex-direction:column; align-items:flex-start; gap:6px; pointer-events:none}   /* right:70px keeps clear of the side rail */
@@ -218,12 +239,12 @@
     #hud .left{gap:8px}
     #hud .btn{font-size:8px; padding:7px 9px}
     #status{font-size:15px; padding:5px 8px}
-    #chatPanel,#emojiPanel,#outfitPanel{right:62px}
+    #chatPanel,#emojiPanel,#outfitPanel,#linkPanel{right:62px}
   }
   @media (max-height:720px){
     #sidebtns{gap:6px}
     #sidebtns .rb{width:42px; height:42px; font-size:8px}
-    #chatPanel,#emojiPanel,#outfitPanel{right:58px}
+    #chatPanel,#emojiPanel,#outfitPanel,#linkPanel{right:58px}
   }
 
   /* handbook */
@@ -279,6 +300,11 @@
   .kon .k ul{margin-left:18px; font-size:19px}
   .badge{display:inline-block; font-family:'Press Start 2P',monospace; font-size:8px; padding:3px 6px; background:var(--gold); color:var(--ink); margin-right:6px}
   .warn{background:#fff3d6; border:3px solid var(--gold2); padding:10px 12px; margin:10px 0; max-width:70ch}
+  .phr li{margin-bottom:6px}
+  .phr li b{color:var(--navy)}
+  .phr .ans{display:block; color:#6b5f45; font-size:18px}
+  .jp{font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP","MS PGothic",sans-serif;
+      font-size:.8em; letter-spacing:.5px; color:var(--navy)}
 
   .art-ic{vertical-align:middle;image-rendering:pixelated;display:inline-block;flex:none}
   .art-hero{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px}
@@ -287,6 +313,7 @@
   .art-kv{display:flex;align-items:center;gap:6px;margin-bottom:2px}
   .art-kv .art-txt{flex:1;min-width:0}
   .kon .k li{display:flex;align-items:center;gap:6px}
+  .kon .k ul.phr li{display:list-item}
   .art-h4{display:flex;align-items:center;gap:8px}
   .art-pack li{display:flex;align-items:center;gap:8px}
   .art-ev-ic{width:20px;height:20px;vertical-align:middle;margin-right:6px;image-rendering:pixelated}
@@ -302,6 +329,13 @@
     <div class="field"><label>Choose your look</label><div id="avatars"></div></div>
     <button class="btn" id="start">Start journey</button>
     <div class="note">Your position is shared with <b>everyone using this game</b> so the party can find each other. If location access is off, you can pin yourself to an itinerary stop instead.</div>
+    <div class="note">Already playing on another device? <button type="button" id="linkTitleToggle">Link with a code</button></div>
+    <div class="field" id="linkTitleField" style="display:none">
+      <label>Device code</label>
+      <input id="linkTitleCode" maxlength="24" placeholder="e.g. p3k9x2ab" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+      <div class="note" id="linkTitleMsg"></div>
+      <button type="button" class="btn" id="linkTitleGo">Link this device</button>
+    </div>
   </div>
 </div>
 
@@ -323,6 +357,7 @@
     <button class="rb" id="chatBtn" title="Party chat" style="font-size:18px">💬<span class="badge" id="chatBadge"></span></button>
     <button class="rb" id="emojiBtn" title="Status & reactions" style="font-size:18px">😊</button>
     <button class="rb" id="outfitBtn" title="Change your outfit" style="font-size:18px">👕</button>
+    <button class="rb" id="linkBtn" title="Link another device" style="font-size:18px">🔗</button>
     <button class="rb" id="leaveBtn" title="Leave party">EXIT</button>
   </div>
   <div id="emojiPanel" class="frame">
@@ -342,6 +377,22 @@
       <input id="chatInput" maxlength="240" placeholder="Say something…" autocomplete="off">
       <button class="btn" type="submit">SEND</button>
     </form>
+  </div>
+  <div id="linkPanel" class="frame">
+    <div class="ch"><span>LINK DEVICE</span><button type="button" id="linkClose" title="Close">×</button></div>
+    <div class="lksec">
+      <div class="eh">YOUR CODE</div>
+      <div id="linkCodeRow"><span id="linkMyCode"></span><button type="button" class="btn" id="linkCopy">COPY</button></div>
+      <div class="note">Type this on your other device to play as the same traveller — the two devices then share one marker, so keep the map open on whichever one you're actually carrying. Anyone with this code can join as you.</div>
+    </div>
+    <div class="lksec">
+      <div class="eh">ENTER A CODE</div>
+      <form id="linkForm" autocomplete="off">
+        <input id="linkInput" maxlength="24" placeholder="p3k9x2ab" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+        <button class="btn" type="submit">LINK</button>
+      </form>
+      <div class="note" id="linkMsg">This device will become that traveller. Its own progress stays behind.</div>
+    </div>
   </div>
   <div id="tray">
     <div class="th px"><span>NEARBY</span><span id="nextTxt">—</span></div>
@@ -437,6 +488,7 @@ async function shrinkImage(file, max=1280, quality=0.82){
 const db = {
   upsertPlayer: p => sb("players?on_conflict=id", { method:"POST", headers:{ Prefer:"resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(p) }),
   listPlayers : () => sb("players?select=*&ts=gt."+(Date.now()-STALE_MS)),
+  getPlayer   : id => sb("players?select=id,name,av,emoji&id=eq."+encodeURIComponent(id)),
   deletePlayer: id => sb("players?id=eq."+encodeURIComponent(id), { method:"DELETE", headers:{ Prefer:"return=minimal" } }),
   sendReaction: r => sb("reactions", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify(r) }),
   listReactions: since => sb("reactions?select=id,player_id,emoji,lat,lng,ts&ts=gt."+since+"&order=ts.asc&limit=50"),
@@ -606,6 +658,7 @@ const uid=(saved&&saved.id)||'p'+Math.random().toString(36).slice(2,10);
 const me={id:uid,name:"",av:0,lat:null,lng:null,acc:null,manual:null,ts:0,emoji:(saved&&saved.emoji)||null};
 let lastReactionTs=Date.now(), seenReactions=new Set();
 let players={}, markers={}, watchId=null, selectedAv=0, follow=true, map, accCircle, netOk=true;
+let leaving=false;   // set once we've started tearing down this device's identity (leave() or link.js) — pushMe() must not resurrect the row we're deleting
 
 /* =========================================================
    TITLE
@@ -749,7 +802,7 @@ function initMap(){
   document.getElementById('pinBtn').onclick=manualPin;
   document.getElementById('emojiBtn').onclick=toggleEmojiPanel;
   document.getElementById('outfitBtn').onclick=toggleOutfitPanel;
-  map.on('click dragstart',()=>{ closeEmojiPanel(); closeOutfitPanel(); });
+  map.on('click dragstart',()=>{ closeEmojiPanel(); closeOutfitPanel(); if(typeof closeLinkPanel==='function') closeLinkPanel(); });
   buildEmojiPanel();
   buildOutfitPanel();
   document.getElementById('leaveBtn').onclick=leave;
@@ -788,6 +841,7 @@ function manualPin(){
 }
 async function leave(){
   if(!confirm("Leave the party? Your marker will be removed for everyone.")) return;
+  leaving=true;
   try{ await db.deletePlayer(me.id); }catch(e){}
   clearSaved();
   if(watchId!=null) navigator.geolocation.clearWatch(watchId);
@@ -819,6 +873,7 @@ function startLocation(){
    SHARED STORAGE
    ========================================================= */
 async function pushMe(){
+  if(leaving) return;   // on our way out — don't re-create a row we just deleted
   if(me.lat==null) return;
   try{ await db.upsertPlayer({id:me.id,name:me.name,av:me.av,lat:me.lat,lng:me.lng,acc:me.acc,manual:me.manual,ts:me.ts,emoji:me.emoji}); netOk=true; }catch(e){ console.warn(e); netOk=false; }
   players[me.id]={...me}; document.getElementById('netdot').classList.toggle('off',!netOk);
@@ -843,7 +898,7 @@ function buildEmojiPanel(){
   const rg=document.getElementById('reactGrid'); rg.innerHTML="";
   REACT_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.type="button"; b.textContent=e; b.onclick=()=>{ sendReaction(e); closeEmojiPanel(); }; rg.appendChild(b); });
 }
-function toggleEmojiPanel(){ closeOutfitPanel(); const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
+function toggleEmojiPanel(){ closeOutfitPanel(); if(typeof closeLinkPanel==='function') closeLinkPanel(); const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
 function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); document.getElementById('emojiBtn').classList.remove('on'); }
 
 /* =========================================================
@@ -865,7 +920,7 @@ function buildOutfitPanel(){
   if(panel) panel.scrollTop=keep;
 }
 function toggleOutfitPanel(){
-  closeEmojiPanel(); if(typeof chatSetOpen==='function') chatSetOpen(false);
+  closeEmojiPanel(); if(typeof chatSetOpen==='function') chatSetOpen(false); if(typeof closeLinkPanel==='function') closeLinkPanel();
   const p=document.getElementById('outfitPanel'); p.classList.toggle('on'); document.getElementById('outfitBtn').classList.toggle('on',p.classList.contains('on'));
 }
 function closeOutfitPanel(){ document.getElementById('outfitPanel').classList.remove('on'); document.getElementById('outfitBtn').classList.remove('on'); }
@@ -989,6 +1044,7 @@ setInterval(updateHud,60000);
 const TABS = [
   {id:'itin', label:'Itinerary', render:()=>renderItin()},
   {id:'tips', label:'Japan tips', render:()=>renderTips()},
+  {id:'lang', label:'Japanese', render:()=>renderLang()},
   {id:'must', label:'Must visit', render:()=>renderMust()},
   {id:'stay', label:'Flights & hotels', render:()=>renderStay()},
   {id:'pack', label:'Pack list', render:()=>renderPack()},
@@ -1030,7 +1086,6 @@ const GAME_TABS = [
   {id:'race',   label:'Race',   fn:'Race'},
   {id:'trivia', label:'Trivia', fn:'Trivia'},
   {id:'sushi',  label:'Sushi',  fn:'Sushi'},
-  {id:'arcade', label:'Arcade', fn:'Arcade'},
 ];
 let gameTab='hunt', gameTickTimer=null, gameOpen=false;
 function gameFnName(id){ const t=GAME_TABS.find(t=>t.id===id); return t?t.fn:null; }
@@ -1084,14 +1139,14 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      keep serving a stale module after index.html has updated, which looks exactly
      like "the new feature didn't ship". Bump it on every deploy that changes a
      module. -->
-<script src="art.js?v=20260909a"></script>
-<script src="checklist.js?v=20260909a"></script>
-<script src="handbook.js?v=20260909a"></script>
-<script src="game-hunt.js?v=20260909a"></script>
-<script src="game-race.js?v=20260909a"></script>
-<script src="game-trivia.js?v=20260909a"></script>
-<script src="game-arcade.js?v=20260909a"></script>
-<script src="game-sushi.js?v=20260909a"></script>
-<script src="chat.js?v=20260909a"></script>
+<script src="art.js?v=20260909b"></script>
+<script src="checklist.js?v=20260909b"></script>
+<script src="handbook.js?v=20260909b"></script>
+<script src="game-hunt.js?v=20260909b"></script>
+<script src="game-race.js?v=20260909b"></script>
+<script src="game-trivia.js?v=20260909b"></script>
+<script src="game-sushi.js?v=20260909b"></script>
+<script src="chat.js?v=20260909b"></script>
+<script src="link.js?v=20260909b"></script>
 </body>
 </html>
