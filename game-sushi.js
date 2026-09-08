@@ -358,8 +358,11 @@ function sushiAdopt(sa){
   // Two people tapped START at the same moment: the earliest start wins, which is
   // a rule every phone can apply on its own, so they all converge on one round.
   // Only while still counting down — swapping rounds once play has begun would
-  // wipe a score that is already on the board.
-  if(sa < SUSHI.startAt && now < SUSHI.startAt) sushiEnterRound(sa);
+  // wipe a score that is already on the board. The `sa > now` term matters too:
+  // without it, a straggler's ping for a round that has already started (or
+  // already finished) could still read as "earlier" than the countdown we are
+  // legitimately in and steal it out from under us.
+  if(sa < SUSHI.startAt && sa > now && now < SUSHI.startAt) sushiEnterRound(sa);
 }
 
 function sushiOnMsg(event, p){
@@ -398,6 +401,11 @@ function sushiPush(force){
 function sushiStart(){
   // one already counting down or in play — the button should be hidden anyway
   if(SUSHI.startAt && Date.now() - SUSHI.startAt < SUSHI_PLAY_MS) return;
+  // Bank the round we are leaving before scheduling the next one. Without this,
+  // lastEnded stays 0 for anyone who arrived during an intermission and never
+  // played, and a straggler's ping for the finished round would win the
+  // earliest-start tie-break and drag them back onto its results screen.
+  sushiEndRound();
   const sa = Date.now() + SUSHI_COUNT_MS;
   sushiEnterRound(sa);
   sushiRT.broadcast("start", { sa });
@@ -425,7 +433,7 @@ function sushiEnterRound(sa){
 function sushiEndRound(){
   if(SUSHI.ended || !SUSHI.startAt) return;
   SUSHI.ended = true;
-  SUSHI.board = sushiPlayers();                  // freeze the result for the intermission
+  SUSHI.board = sushiPlayers().map(p=>({...p}));   // a real snapshot: sushiPlayers hands back live roster objects
   SUSHI.lastEnded = SUSHI.startAt;
   if(!SUSHI.spectating && SUSHI.score > SUSHI.best){ SUSHI.best = SUSHI.score; sushiSetBest(SUSHI.best); }
   SUSHI.lastResult = { board: SUSHI.board, complete: SUSHI.complete };
@@ -553,6 +561,10 @@ function sushiRenderStage(){
   const stage = SUSHI.root && SUSHI.root.querySelector("#sushiStage");
   if(!stage) return;
   const ph = sushiPhase();
+  // The loop can enter here with a "result" phase and the clock can tick over to
+  // "over" before this line runs. There is nothing to paint for a round that is
+  // finished but not yet cleared — the next loop tick drops us to the lobby.
+  if(ph.mode === "over") return;
 
   if(ph.mode === "lobby"){
     const solo = sushiRT.status() !== "live";
@@ -680,10 +692,9 @@ function sushiRenderMat(){
     let mat = "";
     for(let i=0;i<SUSHI_PIECES;i++) mat += `<span>🍣</span>`;
     const room = sushiPresent();
-    const goal = sushiGoal(room.length);
     card.innerHTML = `
       <div class="sushi-mat">${mat}</div>
-      <div class="sushi-roomline"><span>${room.length} in the lobby</span><span>0 / ${goal}</span></div>`;
+      <div class="sushi-roomline"><span>${room.length} in the lobby</span><span>The mat fills once the round starts</span></div>`;
     return;
   }
   const room = (SUSHI.board.length && ph.mode !== "play") ? SUSHI.board : sushiPlayers();
@@ -838,21 +849,32 @@ function sushiKey(e){
 function initSushi(){
   SUSHI.root = document.getElementById("gamePage");
   SUSHI.best = sushiGetBest();
-  SUSHI.startAt = 0; SUSHI.seed = 0; SUSHI.lastEnded = 0;
-  SUSHI.spectating = false; SUSHI.ended = false; SUSHI.mode = ""; SUSHI.lastResult = null;
-  SUSHI.step = -1; SUSHI.lv = -1;
-  SUSHI.room = {}; SUSHI.board = []; SUSHI.complete = false;
-  SUSHI.score = 0; SUSHI.combo = 0; SUSHI.sentAt = 0; SUSHI.dirty = true; SUSHI.lastSec = -1;
-  for(const k in sushiLay) delete sushiLay[k];
+  // A round we were already in survives a tab switch: closing the overlay is one
+  // keystroke, and forfeiting a score plus being demoted to spectator for the rest
+  // of a 60s round is far too harsh a price for glancing at the map. Anything
+  // finished, or from a previous session, resets to the lobby as before.
+  const resume = SUSHI.startAt && (Date.now() - SUSHI.startAt) < SUSHI_PLAY_MS + SUSHI_RESULT_MS;
+  if(resume){
+    SUSHI.seed = sushiSeed(SUSHI.startAt);
+  }else{
+    SUSHI.startAt = 0; SUSHI.seed = 0; SUSHI.lastEnded = 0;
+    SUSHI.spectating = false; SUSHI.ended = false; SUSHI.lastResult = null;
+    SUSHI.score = 0; SUSHI.combo = 0;
+    SUSHI.board = []; SUSHI.complete = false;
+    for(const k in sushiLay) delete sushiLay[k];
+  }
+  SUSHI.mode = ""; SUSHI.step = -1; SUSHI.lv = -1;
+  SUSHI.room = {};
+  SUSHI.sentAt = 0; SUSHI.dirty = true; SUSHI.lastSec = -1;
   sushiRT.open(sushiOnMsg);
   SUSHI.root.addEventListener("click", sushiClick);
   sushiRenderAll();
   sushiLoop();
   SUSHI.uiTimer = setInterval(sushiLoop, SUSHI_UI_MS);
   document.addEventListener("keydown", sushiKey);
-  // Opening the tab always lands you in the lobby. A round already under way
-  // is adopted from the next state ping (within SUSHI_KEEP_MS) — and because
-  // it is already under way, sushiEnterRound will mark you a spectator.
+  // A round not resumed lands in the lobby; one already under way but not ours
+  // is adopted from the next state ping (within SUSHI_KEEP_MS) — and because it
+  // is already under way, sushiEnterRound will mark that adoption a spectator.
 }
 
 function tickSushi(){
@@ -872,5 +894,9 @@ function stopSushi(){
   sushiRT.close();
   SUSHI.root = null;
   SUSHI.room = {};
-  SUSHI.startAt = 0;    // leaving the tab means leaving the lobby
+  // The round itself is deliberately NOT cleared here: closing the overlay is one
+  // keystroke (Escape, the backdrop, or switching to another game tab), and a
+  // round already in progress should survive a quick look at the map rather than
+  // costing the player their score and a demotion to spectator on the way back in.
+  // initSushi() decides whether what's left is still worth resuming.
 }
