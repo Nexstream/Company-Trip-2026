@@ -28,3 +28,10 @@ drop policy if exists "chat insert for all" on public.chat_messages;
 create policy "chat insert for all" on public.chat_messages
   for insert to anon, authenticated
   with check (char_length(body) between 1 and 240);
+
+-- Table privileges. PostgREST checks GRANTs before RLS, so without these the
+-- policies above are never reached and anon gets "permission denied" on both
+-- the poll and the send. The project's default privileges did not cover a table
+-- created through the management API, so grant them explicitly — select+insert
+-- only, the same shape as reactions / arcade_scores.
+grant select, insert on table public.chat_messages to anon, authenticated;
