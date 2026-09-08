@@ -64,6 +64,7 @@ function chatSetOpen(v){
   if(chatOn){
     if(typeof closeEmojiPanel==='function') closeEmojiPanel();
     if(typeof closeOutfitPanel==='function') closeOutfitPanel();
+    if(typeof closeLinkPanel==='function') closeLinkPanel();
     chatUnread=0; chatBadge(); chatScroll();
     setTimeout(()=>document.getElementById('chatInput')?.focus(),0);
   }

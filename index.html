@@ -12,7 +12,7 @@
      startGame() -> initMap() for a returning player before any of the bottom module tags
      have run, so ROUTE_WALK has to already exist by then or the footpath ribbon silently
      never appears for the common case of a saved name in localStorage. -->
-<script src="route.js?v=20260908g"></script>
+<script src="route.js?v=20260909b"></script>
 <style>
   :root{
     --navy:#1b2a44; --navy2:#122036; --gold:#c9a24a; --gold2:#8e6f2a;
@@ -46,6 +46,10 @@
   .btn.ghost{background:var(--navy2); color:var(--gold)}
   .note{font-size:17px; color:#b9c3d6; margin-top:14px}
   .note b{color:var(--gold)}
+  #linkTitleToggle{background:none; border:none; padding:0; color:var(--gold); font-size:inherit; font-family:inherit; text-decoration:underline}
+  #linkTitleField{margin-top:14px}
+  #linkTitleField .btn{margin-top:10px; padding:9px 14px; font-size:10px}
+  #linkTitleMsg{margin-top:8px; font-size:15px}
 
   /* game */
   #game{display:none; height:100%; position:relative}
@@ -116,9 +120,14 @@
   .card2 .n{font-size:17px; color:#fff; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .card2 .m{font-size:14px; color:#b9c3d6; text-align:center; line-height:1.1}
   .card2 .m b{color:var(--gold)}
+  .card2 .m .wk{display:block; color:var(--gold); font-size:13px; margin-top:1px}
+  .card2 .m .wk.est{color:#8ea0bd}
 
-  /* a chat line / reaction echoes on the speaker's card; it overlays the distance
-     line rather than adding a row, so the tray never changes height mid-message */
+  /* a chat line / reaction echo on the speaker's card; it's absolutely positioned over
+     the bottom of the .m block, so today that means it covers the walk row (.wk), not
+     the distance line above it. It doesn't need to reserve any space of its own — the
+     .wk row always being present (walkHtml() falls back to an &nbsp; span rather than
+     an empty string) is what actually keeps every card the same height, echo or not. */
   .card2 .echo{position:absolute; left:4px; right:4px; bottom:4px; padding:2px 5px; background:var(--cream); color:var(--ink);
     border:2px solid var(--ink); font-size:14px; line-height:1.1; text-align:center; overflow-wrap:anywhere;
     display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; animation:cpopIn .18s steps(2)}
@@ -196,6 +205,23 @@
   #chatForm input:focus{border-color:var(--red)}
   #chatForm button{padding:8px 10px; font-size:9px; border-width:3px; box-shadow:2px 2px 0 var(--navy2)}
 
+  /* link device */
+  #linkPanel{position:absolute; right:66px; bottom:calc(var(--trayh,140px) + 10px); z-index:600; display:none; width:min(340px,calc(100vw - 90px)); padding:10px;
+    background:rgba(27,42,68,.97); border:3px solid var(--gold); box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+  #linkPanel.on{display:flex; flex-direction:column; gap:12px}
+  #linkPanel .ch{display:flex; align-items:center; justify-content:space-between; font-family:'Press Start 2P',monospace; font-size:8px; color:var(--gold)}
+  #linkPanel .ch button{background:none; border:none; color:#b9c3d6; font-size:22px; line-height:1; padding:0 4px}
+  #linkPanel .eh{font-family:'Press Start 2P',monospace; font-size:8px; color:var(--gold); margin-bottom:6px}
+  #linkPanel .note{font-size:15px; margin-top:6px}
+  #linkCodeRow{display:flex; align-items:center; gap:8px}
+  #linkMyCode{flex:1; min-width:0; padding:8px 10px; font-family:'VT323','Courier New',monospace; font-size:22px; letter-spacing:1px; color:var(--gold);
+    background:var(--navy2); border:2px solid var(--gold2); overflow-wrap:anywhere; user-select:all}
+  #linkCodeRow .btn{padding:8px 10px; font-size:9px; border-width:3px; box-shadow:2px 2px 0 var(--navy2)}
+  #linkForm{display:flex; gap:6px}
+  #linkForm input{flex:1; min-width:0; padding:7px 8px; font-family:'VT323','Courier New',monospace; font-size:19px; background:var(--cream); color:var(--ink); border:3px solid var(--gold2); outline:none}
+  #linkForm input:focus{border-color:var(--red)}
+  #linkForm button{padding:8px 10px; font-size:9px; border-width:3px; box-shadow:2px 2px 0 var(--navy2)}
+
   /* chat bubbles: toast stack (visible over the games/handbook overlays too) */
   #chatPops{position:fixed; left:12px; right:70px; bottom:calc(var(--trayh,0px) + 12px); z-index:1200;
     display:flex; flex-direction:column; align-items:flex-start; gap:6px; pointer-events:none}   /* right:70px keeps clear of the side rail */
@@ -218,12 +244,12 @@
     #hud .left{gap:8px}
     #hud .btn{font-size:8px; padding:7px 9px}
     #status{font-size:15px; padding:5px 8px}
-    #chatPanel,#emojiPanel,#outfitPanel{right:62px}
+    #chatPanel,#emojiPanel,#outfitPanel,#linkPanel{right:62px}
   }
   @media (max-height:720px){
     #sidebtns{gap:6px}
     #sidebtns .rb{width:42px; height:42px; font-size:8px}
-    #chatPanel,#emojiPanel,#outfitPanel{right:58px}
+    #chatPanel,#emojiPanel,#outfitPanel,#linkPanel{right:58px}
   }
 
   /* handbook */
@@ -255,12 +281,35 @@
   .tl .ds{color:#6b5f45; font-size:18px}
   .tl .go{font-size:16px; margin-left:8px; color:#fff; background:var(--navy); padding:1px 6px; border:none}
   .tl .fly{font-size:16px; margin-left:6px; color:var(--ink); background:var(--gold); padding:1px 6px; border:none}
+  .tl .spotlink{background:none; border:none; font:inherit; font-weight:bold; color:var(--ink); text-decoration:underline dotted; padding:0; text-align:left; cursor:pointer}
+  .tl .sinfo{font-size:16px; margin-left:6px; padding:1px 6px; border:none; background:var(--red); color:#fff}
+  .spotnav{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  .spotnav button{font-family:'Press Start 2P',monospace; font-size:8px; padding:8px 10px; border:3px solid var(--ink)}
+  .spotnav .spotback{background:var(--cream); color:var(--ink)}
+  .spotnav .fly{background:var(--gold); color:var(--ink)}
+  .spotnav .go{background:var(--navy); color:#fff}
+  .spotback{font-family:'Press Start 2P',monospace; font-size:8px; padding:8px 10px; border:3px solid var(--ink); background:var(--cream); color:var(--ink)}
+  .page>.spotback{margin-top:10px}
+  .spothead{display:flex; align-items:center; gap:10px; border-bottom:3px solid var(--ink); padding-bottom:10px; margin-bottom:12px}
+  .spothead .art-ev-ic{width:40px; height:40px; margin:0}
+  .spothead h4{margin:0}
+  .spotmeta{font-size:18px; color:#6b5f45; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px}
+  .spotdist{color:var(--red)}
+  .sinear li, .sistops li{margin-bottom:8px}
+  .siw{font-family:'Press Start 2P',monospace; font-size:8px; background:var(--cream); border:2px solid var(--ink); padding:2px 5px; margin-left:6px}
+  .sistops .fly{font-size:16px; margin-left:8px; padding:1px 6px; border:none; background:var(--gold); color:var(--ink)}
+  .page .ds{color:#6b5f45; font-size:18px}
   .kon{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin-bottom:14px}
   .kon .k{border:3px solid var(--ink); padding:10px 12px; background:var(--cream)}
   .kon .k .kn{font-family:'Press Start 2P',monospace; font-size:9px; margin-bottom:6px}
   .kon .k ul{margin-left:18px; font-size:19px}
   .badge{display:inline-block; font-family:'Press Start 2P',monospace; font-size:8px; padding:3px 6px; background:var(--gold); color:var(--ink); margin-right:6px}
   .warn{background:#fff3d6; border:3px solid var(--gold2); padding:10px 12px; margin:10px 0; max-width:70ch}
+  .phr li{margin-bottom:6px}
+  .phr li b{color:var(--navy)}
+  .phr .ans{display:block; color:#6b5f45; font-size:18px}
+  .jp{font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP","MS PGothic",sans-serif;
+      font-size:.8em; letter-spacing:.5px; color:var(--navy)}
 
   .art-ic{vertical-align:middle;image-rendering:pixelated;display:inline-block;flex:none}
   .art-hero{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px}
@@ -269,6 +318,7 @@
   .art-kv{display:flex;align-items:center;gap:6px;margin-bottom:2px}
   .art-kv .art-txt{flex:1;min-width:0}
   .kon .k li{display:flex;align-items:center;gap:6px}
+  .kon .k ul.phr li{display:list-item}
   .art-h4{display:flex;align-items:center;gap:8px}
   .art-pack li{display:flex;align-items:center;gap:8px}
   .art-ev-ic{width:20px;height:20px;vertical-align:middle;margin-right:6px;image-rendering:pixelated}
@@ -284,6 +334,13 @@
     <div class="field"><label>Choose your look</label><div id="avatars"></div></div>
     <button class="btn" id="start">Start journey</button>
     <div class="note">Your position is shared with <b>everyone using this game</b> so the party can find each other. If location access is off, you can pin yourself to an itinerary stop instead.</div>
+    <div class="note">Already playing on another device? <button type="button" id="linkTitleToggle">Link with a code</button></div>
+    <div class="field" id="linkTitleField" style="display:none">
+      <label>Device code</label>
+      <input id="linkTitleCode" maxlength="24" placeholder="e.g. p3k9x2ab" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+      <div class="note" id="linkTitleMsg"></div>
+      <button type="button" class="btn" id="linkTitleGo">Link this device</button>
+    </div>
   </div>
 </div>
 
@@ -305,6 +362,7 @@
     <button class="rb" id="chatBtn" title="Party chat" style="font-size:18px">💬<span class="badge" id="chatBadge"></span></button>
     <button class="rb" id="emojiBtn" title="Status & reactions" style="font-size:18px">😊</button>
     <button class="rb" id="outfitBtn" title="Change your outfit" style="font-size:18px">👕</button>
+    <button class="rb" id="linkBtn" title="Link another device" style="font-size:18px">🔗</button>
     <button class="rb" id="leaveBtn" title="Leave party">EXIT</button>
   </div>
   <div id="emojiPanel" class="frame">
@@ -324,6 +382,22 @@
       <input id="chatInput" maxlength="240" placeholder="Say something…" autocomplete="off">
       <button class="btn" type="submit">SEND</button>
     </form>
+  </div>
+  <div id="linkPanel" class="frame">
+    <div class="ch"><span>LINK DEVICE</span><button type="button" id="linkClose" title="Close">×</button></div>
+    <div class="lksec">
+      <div class="eh">YOUR CODE</div>
+      <div id="linkCodeRow"><span id="linkMyCode"></span><button type="button" class="btn" id="linkCopy">COPY</button></div>
+      <div class="note">Type this on your other device to play as the same traveller — the two devices then share one marker, so keep the map open on whichever one you're actually carrying. Anyone with this code can join as you.</div>
+    </div>
+    <div class="lksec">
+      <div class="eh">ENTER A CODE</div>
+      <form id="linkForm" autocomplete="off">
+        <input id="linkInput" maxlength="24" placeholder="p3k9x2ab" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+        <button class="btn" type="submit">LINK</button>
+      </form>
+      <div class="note" id="linkMsg">This device will become that traveller. Its own progress stays behind.</div>
+    </div>
   </div>
   <div id="tray">
     <div class="th px"><span>NEARBY</span><span id="nextTxt">—</span></div>
@@ -419,6 +493,7 @@ async function shrinkImage(file, max=1280, quality=0.82){
 const db = {
   upsertPlayer: p => sb("players?on_conflict=id", { method:"POST", headers:{ Prefer:"resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(p) }),
   listPlayers : () => sb("players?select=*&ts=gt."+(Date.now()-STALE_MS)),
+  getPlayer   : id => sb("players?select=id,name,av,emoji&id=eq."+encodeURIComponent(id)),
   deletePlayer: id => sb("players?id=eq."+encodeURIComponent(id), { method:"DELETE", headers:{ Prefer:"return=minimal" } }),
   sendReaction: r => sb("reactions", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify(r) }),
   listReactions: since => sb("reactions?select=id,player_id,emoji,lat,lng,ts&ts=gt."+since+"&order=ts.asc&limit=50"),
@@ -588,6 +663,7 @@ const uid=(saved&&saved.id)||'p'+Math.random().toString(36).slice(2,10);
 const me={id:uid,name:"",av:0,lat:null,lng:null,acc:null,manual:null,ts:0,emoji:(saved&&saved.emoji)||null};
 let lastReactionTs=Date.now(), seenReactions=new Set();
 let players={}, markers={}, watchId=null, selectedAv=0, follow=true, map, accCircle, netOk=true;
+let leaving=false;   // set once we've started tearing down this device's identity (leave() or link.js) — pushMe() must not resurrect the row we're deleting
 
 /* =========================================================
    TITLE
@@ -731,7 +807,7 @@ function initMap(){
   document.getElementById('pinBtn').onclick=manualPin;
   document.getElementById('emojiBtn').onclick=toggleEmojiPanel;
   document.getElementById('outfitBtn').onclick=toggleOutfitPanel;
-  map.on('click dragstart',()=>{ closeEmojiPanel(); closeOutfitPanel(); });
+  map.on('click dragstart',()=>{ closeEmojiPanel(); closeOutfitPanel(); if(typeof closeLinkPanel==='function') closeLinkPanel(); });
   buildEmojiPanel();
   buildOutfitPanel();
   document.getElementById('leaveBtn').onclick=leave;
@@ -743,6 +819,29 @@ function playerIcon(p){
   return L.divIcon({className:'', html:`<div class="pm ${p.id===me.id?'me':''} ${stale?'stale':''}">${p.id===me.id?'<div class="spark"></div>':''}<canvas width="8" height="8" data-av="${p.av||0}"></canvas>${p.emoji?`<div class="em">${esc(p.emoji)}</div>`:''}<div class="lbl">${esc((p.name||'?').slice(0,10))}</div></div>`, iconSize:[32,44], iconAnchor:[16,32], popupAnchor:[0,-30]});
 }
 function paintCanvases(){ document.querySelectorAll('.pm canvas[data-av]').forEach(c=>{ if(c.dataset.done) return; drawSprite(c.getContext('2d'),charRows(+c.dataset.av),charPal(+c.dataset.av),0,0,1); c.dataset.done=1; }); }
+// Resolves players[id] live rather than closing over a stale player object — players is
+// replaced wholesale on every 6s poll, so a callback that captured p at bindPopup time
+// (the old inline arrow function did exactly that) would show a frozen ago/position for
+// as long as the popup stayed open. Doesn't need a walk*/WALK_ prefix per CLAUDE.md's rule
+// since it isn't part of the walking-distance feature itself, just the thing that grew a
+// line for it.
+function playerPopupHtml(id){
+  const p=players[id]; if(!p) return "";
+  const ago=Math.round((Date.now()-p.ts)/60000);
+  let walk="";
+  if(p.id!==me.id){
+    // A manual PIN counts as a real position here, same reasoning as raceInRange() and
+    // unlike huntWhereAmI() — this is a convenience number, not anti-cheat, so there is
+    // nothing to gate.
+    if(me.lat!=null&&p.lat!=null&&walkKeyPending===walkKey(id)){
+      walk=`<br><span style="color:#c9a24a">Getting walking route…</span>`;
+    } else {
+      const w=walkFor(id);
+      if(w) walk=`<br><span style="color:#c9a24a">Walk ${w.est?"~":""}${fmtKm(w.km)} · ${w.mins} min</span>`;
+    }
+  }
+  return `<div class="t">${p.id===me.id?"YOU":"PARTY"}</div>${esc(p.name)}<br><span style="color:#6b5f45">${p.manual?"pinned to a stop":"live GPS"} · ${ago<1?"just now":ago+" min ago"}</span>${p.id!==me.id?distFromMe(p.lat,p.lng):""}${walk}<br><span style="color:#6b5f45">${nearestSpot(p.lat,p.lng)}</span>`;
+}
 function renderMarkers(){
   const now=Date.now(); const live=new Set();
   Object.values(players).forEach(p=>{
@@ -750,7 +849,14 @@ function renderMarkers(){
     const ll=[p.lat,p.lng];
     if(!markers[p.id]){
       markers[p.id]=L.marker(ll,{icon:playerIcon(p),zIndexOffset:p.id===me.id?1000:500}).addTo(map);
-      markers[p.id].bindPopup(()=>{ const ago=Math.round((Date.now()-p.ts)/60000); return `<div class="t">${p.id===me.id?"YOU":"PARTY"}</div>${esc(p.name)}<br><span style="color:#6b5f45">${p.manual?"pinned to a stop":"live GPS"} · ${ago<1?"just now":ago+" min ago"}</span>${p.id!==me.id?distFromMe(p.lat,p.lng):""}<br><span style="color:#6b5f45">${nearestSpot(p.lat,p.lng)}</span>`; });
+      markers[p.id].bindPopup(()=>playerPopupHtml(p.id));
+      // p.id is stable so capturing it here is fine — everything each handler does re-resolves
+      // through players[id]/markers[id] rather than trusting anything else captured at this
+      // closure's creation time. The line belongs to the open popup, nothing more: it appears
+      // on open and clears on close (including a plain map-tap close, which Leaflet already
+      // routes through 'popupclose') — there is deliberately no separate toggle for it.
+      markers[p.id].on('popupopen',()=>walkTap(p.id));
+      markers[p.id].on('popupclose',()=>{ if(walkWant===p.id){ walkWant=null; walkClear(); } });
     } else { markers[p.id].setLatLng(ll); markers[p.id].setIcon(playerIcon(p)); }
   });
   for(const id in markers){ if(!live.has(id)){ map.removeLayer(markers[id]); delete markers[id]; } }
@@ -770,6 +876,7 @@ function manualPin(){
 }
 async function leave(){
   if(!confirm("Leave the party? Your marker will be removed for everyone.")) return;
+  leaving=true;
   try{ await db.deletePlayer(me.id); }catch(e){}
   clearSaved();
   if(watchId!=null) navigator.geolocation.clearWatch(watchId);
@@ -801,6 +908,7 @@ function startLocation(){
    SHARED STORAGE
    ========================================================= */
 async function pushMe(){
+  if(leaving) return;   // on our way out — don't re-create a row we just deleted
   if(me.lat==null) return;
   try{ await db.upsertPlayer({id:me.id,name:me.name,av:me.av,lat:me.lat,lng:me.lng,acc:me.acc,manual:me.manual,ts:me.ts,emoji:me.emoji}); netOk=true; }catch(e){ console.warn(e); netOk=false; }
   players[me.id]={...me}; document.getElementById('netdot').classList.toggle('off',!netOk);
@@ -825,7 +933,7 @@ function buildEmojiPanel(){
   const rg=document.getElementById('reactGrid'); rg.innerHTML="";
   REACT_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.type="button"; b.textContent=e; b.onclick=()=>{ sendReaction(e); closeEmojiPanel(); }; rg.appendChild(b); });
 }
-function toggleEmojiPanel(){ closeOutfitPanel(); const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
+function toggleEmojiPanel(){ closeOutfitPanel(); if(typeof closeLinkPanel==='function') closeLinkPanel(); const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
 function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); document.getElementById('emojiBtn').classList.remove('on'); }
 
 /* =========================================================
@@ -847,7 +955,7 @@ function buildOutfitPanel(){
   if(panel) panel.scrollTop=keep;
 }
 function toggleOutfitPanel(){
-  closeEmojiPanel(); if(typeof chatSetOpen==='function') chatSetOpen(false);
+  closeEmojiPanel(); if(typeof chatSetOpen==='function') chatSetOpen(false); if(typeof closeLinkPanel==='function') closeLinkPanel();
   const p=document.getElementById('outfitPanel'); p.classList.toggle('on'); document.getElementById('outfitBtn').classList.toggle('on',p.classList.contains('on'));
 }
 function closeOutfitPanel(){ document.getElementById('outfitPanel').classList.remove('on'); document.getElementById('outfitBtn').classList.remove('on'); }
@@ -926,7 +1034,7 @@ function renderTray(){
     const ago=Math.round((now-p.ts)/60000);
     const dist=(p.id!==me.id&&me.lat!=null)?`<b>${fmtKm(haversine(me.lat,me.lng,p.lat,p.lng))}</b> away`:"you";
     const av=document.createElement('div'); av.className='av'; av.appendChild(c); if(p.emoji) av.insertAdjacentHTML('beforeend',`<div class="em2">${esc(p.emoji)}</div>`);
-    d.appendChild(av); d.insertAdjacentHTML('beforeend',`<div class="n">${esc(p.name)}</div><div class="m">${dist}<br>${ago<1?"just now":ago+" min"}</div>${echo}`);
+    d.appendChild(av); d.insertAdjacentHTML('beforeend',`<div class="n">${esc(p.name)}</div><div class="m">${dist}<br>${ago<1?"just now":ago+" min"}${walkHtml(p.id)}</div>${echo}`);
     d.onclick=()=>{ setFollow(false); map.flyTo([p.lat,p.lng],16,FLY_OPTS); if(markers[p.id]) markers[p.id].openPopup(); };
     el.appendChild(d);
   });
@@ -942,6 +1050,198 @@ function haversine(a,b,c,d){ const R=6371,toR=x=>x*Math.PI/180; const dl=toR(c-a
 function fmtKm(km){ return km<1?Math.round(km*1000)+" m":(km<100?km.toFixed(1)+" km":Math.round(km).toLocaleString()+" km"); }
 function nearestSpot(lat,lng){ if(lat==null) return "—"; let best=null,bd=1e9; for(const k in SPOTS){ const d=haversine(lat,lng,SPOTS[k].lat,SPOTS[k].lng); if(d<bd){bd=d;best=SPOTS[k];} } if(bd>60) return "Outside Kansai"; return bd<0.4?"At "+best.n:`${fmtKm(bd)} from ${best.n}`; }
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* =========================================================
+   WALKING DISTANCE (estimate + routed)
+
+   Two tiers. Tier 1 is pure haversine math and runs everywhere, including
+   inside renderTray()/renderMarkers() — both repaint roughly once a second
+   while walking (every 6s poll, every GPS fix), so anything they call has
+   to be safe to recompute constantly. Tier 2 is one real pedestrian-routed
+   call to a free public Valhalla instance (the same one tools/build-route.py
+   already uses to build the trip ribbon), fired only from a marker's
+   popupopen handler — never from a render path — cached, deduped against
+   an in-flight request, and aborted-and-superseded rather than left to
+   race a newer tap. That restraint (one call per popup-open, cached, never
+   in a loop) is what makes it acceptable to hit someone else's server from
+   the client at all. Map data (c) OpenStreetMap contributors, ODbL 1.0.
+   ========================================================= */
+const WALK_DETOUR=1.3, WALK_KMH=4.8, WALK_MAX_KM=5, WALK_TIMEOUT_MS=8000, WALK_CACHE_MAX=40, WALK_FAIL_TTL=3*60*1000;
+const WALK_URL="https://valhalla1.openstreetmap.de/route";
+const walkCache=new Map();   // walkKey() -> {km,mins,pts,est:false}, routed results only
+const walkFail=new Map();    // walkKey() -> Date.now() when it failed/timed out (see walkFailHas)
+let walkWant=null, walkKeyPending=null, walkAbort=null, walkLayer=null;
+
+// Every coordinate rounded to 4dp (~11m) before joining — the cache (and walkFail) self
+// -invalidate the moment either person actually moves, and repeat taps on a stationary
+// pair (open a card, close it, open it again) cost nothing. Callers that might have an
+// unset me/players fix must check that before calling this — it assumes valid numbers.
+function walkKey(id){ const p=players[id]; return [me.lat,me.lng,p.lat,p.lng].map(x=>(+x).toFixed(4)).join(','); }
+function walkMins(km){ return Math.max(1,Math.round(km/WALK_KMH*60)); }
+// The public instance is free and community-run, so backing off a key that just failed
+// or timed out is the right way to avoid hammering it — but backing off *forever* is not:
+// keys are coordinates rounded to 4dp, so two people sitting still in the same restaurant
+// produce a stable key, and one bad response would otherwise silently kill routing for
+// that pair for the rest of the session. Deletes an expired entry as a side effect of
+// checking it, so the very next tap after WALK_FAIL_TTL elapses gets a clean retry.
+function walkFailHas(key){
+  const t=walkFail.get(key);
+  if(t==null) return false;
+  if(Date.now()-t>WALK_FAIL_TTL){ walkFail.delete(key); return false; }
+  return true;
+}
+// The offline estimate: straight-line distance inflated by a flat urban detour factor,
+// walked at an average pace. Capped at WALK_MAX_KM because a player in Osaka and one in
+// Kyoto are ~40km apart as the crow flies, and "8h 20m walk" is noise, not information —
+// nobody is walking that, so showing nothing is more honest than showing a number.
+function walkEstimate(id){
+  if(id===me.id||me.lat==null) return null;
+  const p=players[id]; if(!p||p.lat==null) return null;
+  const straight=haversine(me.lat,me.lng,p.lat,p.lng);
+  if(straight>WALK_MAX_KM) return null;
+  const km=straight*WALK_DETOUR;
+  return {km, mins:walkMins(km), est:true};
+}
+// Cache-first lookup used by both the tray card and the popup line. Guards on me.lat/the
+// player before ever touching walkKey(), so a missing fix falls through to walkEstimate()'s
+// own null instead of throwing on toFixed(null) inside walkKey().
+function walkFor(id){
+  const p=players[id];
+  if(me.lat==null||!p||p.lat==null) return walkEstimate(id);
+  const k=walkKey(id);
+  return walkCache.has(k)?walkCache.get(k):walkEstimate(id);
+}
+function walkText(w){ return `🚶 ${w.est?"~":""}${fmtKm(w.km)} · ${w.mins} min`; }
+// Always returns a .wk span, even with nothing to show (self, no fix yet, or beyond
+// WALK_MAX_KM) — .wk is display:block, so a card that sometimes had three rows and
+// sometimes two would resize on every render as a pair's straight-line distance crosses
+// the 5km cap. trackChrome()'s ResizeObserver would read that as a genuine tray resize
+// and reflow #sidebtns/#chatPanel/#status around it — exactly the failure mode "overlay
+// chrome is measured, not hardcoded" exists to prevent. A reserved, sometimes-empty row
+// keeps every card's height constant regardless of what walkFor() returns.
+function walkHtml(id){ const w=walkFor(id); if(!w) return `<span class="wk">&nbsp;</span>`; return `<span class="wk${w.est?" est":""}">${walkText(w)}</span>`; }
+// Standard Google encoded-polyline algorithm at precision 6 (divisor 1e6). Valhalla's
+// `shape` is polyline6, not the far more common polyline5 — decoding at 1e5 would silently
+// yield points off by roughly ten degrees rather than throwing. Mirrors
+// tools/build-route.py's decode_polyline6() exactly, one language over.
+function walkDecodePolyline6(str){
+  const coords=[]; let index=0,lat=0,lng=0;
+  while(index<str.length){
+    for(const f of ['lat','lng']){
+      let shift=0,result=0,b;
+      do{ b=str.charCodeAt(index++)-63; result|=(b&0x1f)<<shift; shift+=5; }while(b>=0x20);
+      const delta=(result&1)?~(result>>1):(result>>1);
+      if(f==='lat') lat+=delta; else lng+=delta;
+    }
+    coords.push([lat/1e6,lng/1e6]);
+  }
+  return coords;
+}
+function walkClear(){ if(walkLayer){ map.removeLayer(walkLayer); walkLayer=null; } }
+// Casing+core deliberately echoes the trip ribbon's cream-and-red stack from initMap(), but
+// with no gold overlay on top: gold is what marks a line as *the* itinerary route there, and
+// this line means "your walk to one person right now" — giving it the same gold would make
+// it look like it belongs to a route it has nothing to do with. interactive:false for the
+// same reason as the ribbon's own strokes: no handlers, so hit-testing along the line is
+// pure cost. L.featureGroup (not layerGroup) because walkFetch needs .getBounds() on the
+// result to decide whether to fly the map to it.
+function walkDraw(pts){
+  walkClear();
+  const CASE={color:'#f3e8cf',weight:8,opacity:.9,lineCap:'round',lineJoin:'round',interactive:false};
+  const CORE={color:'#c8442b',weight:4,opacity:1,lineCap:'round',lineJoin:'round',interactive:false};
+  walkLayer=L.featureGroup([L.polyline(pts,CASE),L.polyline(pts,CORE)]).addTo(map);
+}
+// The only place that fetches. Order matters: the cache is checked before walkFail, so a
+// route already in hand is always honoured and redrawn even for a key that's since gone
+// into backoff, and walkWant is claimed *before* the in-flight check can bail out, so a
+// popup that gets closed and reopened while its own fetch is still running re-claims that
+// fetch rather than stranding it (see the comments inline below for why each matters).
+function walkTap(id){
+  const est=walkEstimate(id); if(!est) return;
+  const key=walkKey(id);
+  if(walkCache.has(key)){
+    // A route already in hand must be honoured even if this key later landed in
+    // walkFail — checking the cache first means we never even have to ask.
+    if(walkWant!==id){ walkWant=id; walkDraw(walkCache.get(key).pts); }
+    return;
+  }
+  if(walkFailHas(key)) return;
+  // Claim the request before checking whether one is already in flight for it — a
+  // reopen has to re-claim the fetch that's already running for this id, not
+  // early-return past it and leave walkWant wherever the intervening popupclose reset
+  // it to (null, or another player's id) while that fetch is still on the wire.
+  walkWant=id;
+  if(walkKeyPending===key) return;
+  if(walkAbort) walkAbort.abort(); // a fresh tap supersedes an older one — never let two routes race to draw
+  walkFetch(id,key);
+  // walkFetch sets walkKeyPending synchronously before its first await, and Leaflet
+  // evaluates popup content in onAdd -> update(), which runs before it ever fires
+  // popupopen — so without this refresh here, the "Getting walking route…" line in
+  // playerPopupHtml() is dead code that never actually renders on a first open.
+  walkRefresh(id);
+}
+async function walkFetch(id,key){
+  const p=players[id]; if(!p){ return; }
+  walkKeyPending=key;
+  const ac=new AbortController(); walkAbort=ac;
+  const timer=setTimeout(()=>ac.abort(),WALK_TIMEOUT_MS);
+  let result=null;
+  try{
+    const body={locations:[{lat:me.lat,lon:me.lng},{lat:p.lat,lon:p.lng}],costing:"pedestrian",directions_options:{units:"kilometers",directions_type:"none"}};
+    const r=await fetch(WALK_URL+"?json="+encodeURIComponent(JSON.stringify(body)),{signal:ac.signal});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    const km=j.trip.summary.length;
+    const mins=Math.max(1,Math.round(j.trip.summary.time/60));
+    const pts=[]; for(const leg of j.trip.legs) pts.push(...walkDecodePolyline6(leg.shape));
+    result={km,mins,pts,est:false};
+    walkCache.set(key,result);
+    if(walkCache.size>WALK_CACHE_MAX) walkCache.delete(walkCache.keys().next().value);
+  }catch(e){
+    // An abort caused by a *newer* tap (walkAbort no longer === ac, because that tap's
+    // walkTap() already installed its own controller) must not poison walkFail for this
+    // key — that would block the very retry the newer tap is about to make. A timeout's
+    // own abort leaves walkAbort===ac, since nothing else has replaced it, so it still
+    // counts as a real failure.
+    if(!(e.name==='AbortError'&&walkAbort!==ac)){
+      console.warn('walk route failed',e);
+      walkFail.set(key,Date.now());
+      if(walkFail.size>WALK_CACHE_MAX) walkFail.delete(walkFail.keys().next().value);
+    }
+  }finally{
+    clearTimeout(timer);
+    if(walkAbort===ac) walkAbort=null;
+    if(walkKeyPending===key) walkKeyPending=null;
+  }
+  // Draw/fly/refresh happen after the try/catch/finally has fully settled, not inside the
+  // try — narrowing the try to fetch+parse+cache means a throw from getBounds()/
+  // flyToBounds()/renderTray() (post-success work) can never be mistaken for a routing
+  // failure and add an already-successfully-cached key to walkFail. Guarded on
+  // walkWant===id since a newer tap may have taken over while this one was in flight.
+  // walkKeyPending is already clear by the time we get here — the finally above already
+  // ran — so no separate clear is needed before walkRefresh() picks up the routed number.
+  if(walkWant!==id) return;
+  if(result){
+    walkDraw(result.pts);
+    if(!map.getBounds().contains(walkLayer.getBounds())){
+      setFollow(false); // an in-place fly must not be yanked back by the next GPS fix's panTo — same reason tripBtn/the tray card tap/the .fly buttons all disable follow before flying
+      map.flyToBounds(walkLayer.getBounds(),{...FLY_OPTS,padding:[40,40]});
+    }
+  }
+  // Refreshed whether or not a route came back: on a failure or a timeout there is nothing
+  // to draw, but the popup is still sitting on "Getting walking route…" and would stay
+  // there for the rest of its open lifetime — the estimate has to come back in its place.
+  walkRefresh(id);
+  renderTray();
+}
+// Called once the routed result lands, since the popup was already open (and showing the
+// "Getting walking route…" line) before the fetch resolved. Passed as a function, not as
+// playerPopupHtml(id)'s already-evaluated string — Leaflet's Popup only re-evaluates string
+// vs. function content on the *next* open when it was bound as a function (bindPopup's own
+// callback), so handing it a frozen string here would un-live the popup for every future
+// open of this player: the "min ago" line would stop ticking and a stale walk line would
+// stick around even if the pair later moved out of routing range.
+function walkRefresh(id){ const mk=markers[id]; if(mk&&mk.isPopupOpen()) mk.setPopupContent(()=>playerPopupHtml(id)); }
 
 /* =========================================================
    DAY / NEXT STOP
@@ -971,32 +1271,36 @@ setInterval(updateHud,60000);
 const TABS = [
   {id:'itin', label:'Itinerary', render:()=>renderItin()},
   {id:'tips', label:'Japan tips', render:()=>renderTips()},
+  {id:'lang', label:'Japanese', render:()=>renderLang()},
   {id:'must', label:'Must visit', render:()=>renderMust()},
   {id:'stay', label:'Flights & hotels', render:()=>renderStay()},
   {id:'pack', label:'Pack list', render:()=>renderPack()},
 ];
-let tab='itin', dayView=Math.max(0,todayIdx()>=0?todayIdx():1);
+let tab='itin', dayView=Math.max(0,todayIdx()>=0?todayIdx():1), spotView=null;
 const tabsEl=document.getElementById('tabs');
-TABS.forEach(t=>{ const b=document.createElement('button'); b.textContent=t.label; b.onclick=()=>{tab=t.id; renderBook();}; b.dataset.id=t.id; tabsEl.appendChild(b); });
-document.getElementById('openBook').onclick=()=>{ document.getElementById('book').classList.add('on'); renderBook(); };
+TABS.forEach(t=>{ const b=document.createElement('button'); b.textContent=t.label; b.onclick=()=>{tab=t.id; spotView=null; renderBook();}; b.dataset.id=t.id; tabsEl.appendChild(b); });
+document.getElementById('openBook').onclick=()=>{ document.getElementById('book').classList.add('on'); spotView=null; renderBook(); };
 document.getElementById('closeBook').onclick=()=>document.getElementById('book').classList.remove('on');
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.getElementById('book').classList.remove('on'); });
 
 function renderBook(){
   [...tabsEl.children].forEach(b=>b.classList.toggle('on',b.dataset.id===tab));
   document.getElementById('page').innerHTML = TABS.find(t=>t.id===tab).render();
-  document.querySelectorAll('.daysel button').forEach(b=>b.onclick=()=>{dayView=+b.dataset.i; renderBook();});
+  document.querySelectorAll('.daysel button').forEach(b=>b.onclick=()=>{dayView=+b.dataset.i; spotView=null; renderBook();});
   document.querySelectorAll('.go').forEach(b=>b.onclick=()=>pinTo(b.dataset.k));
   document.querySelectorAll('.fly').forEach(b=>b.onclick=()=>{ const s=SPOTS[b.dataset.k]; setFollow(false); map.flyTo([s.lat,s.lng],16,FLY_OPTS); document.getElementById('book').classList.remove('on'); });
+  document.querySelectorAll('.spotlink,.sinfo').forEach(b=>b.onclick=()=>{ spotView=b.dataset.k; renderBook(); });
+  document.querySelectorAll('.spotback').forEach(b=>b.onclick=()=>{ spotView=null; renderBook(); });
   if(tab==='pack' && typeof ckOnPackShown==='function') ckOnPackShown();
 }
 function renderItin(){
+  if(spotView && SPOTS[spotView] && typeof renderSpotDetail==='function') return renderSpotDetail(spotView);
   const ti=todayIdx();
   let h='<div class="daysel">'+DAYS.map((d,i)=>`<button data-i="${i}" class="${i===dayView?'on':''} ${i===ti?'today':''}">${d.label}</button>`).join('')+'</div>';
   const d=DAYS[dayView];
   h+=`<h4>${d.label} · ${fmtDate(d.d)} — ${d.title}</h4><div class="tl">`;
-  d.ev.forEach(e=>{ const ic=e[3]?`<img class="art-ev-ic" src="${ICON_URL[SPOTS[e[3]].icon]||ICON_URL.temple}" alt="">`:""; h+=`<div class="ev"><span class="tm">${e[0]}</span>${ic}<span class="nm">${esc(e[1])}</span>${e[3]?`<button class="fly" data-k="${e[3]}">Map</button><button class="go" data-k="${e[3]}">I am here</button>`:""}${e[2]?`<div class="ds">${esc(e[2])}</div>`:""}</div>`; });
-  h+=`</div><p class="ds" style="color:#6b5f45;font-size:18px">Tap "Map" to see a stop, or "I am here" to pin yourself to a stop when GPS is off. Agree on a time and place to regroup before any free & easy session.</p>`;
+  d.ev.forEach(e=>{ const ic=e[3]?`<img class="art-ev-ic" src="${ICON_URL[SPOTS[e[3]].icon]||ICON_URL.temple}" alt="">`:""; const name=e[3]?`<button class="spotlink nm" data-k="${e[3]}">${esc(e[1])}</button>`:`<span class="nm">${esc(e[1])}</span>`; h+=`<div class="ev"><span class="tm">${e[0]}</span>${ic}${name}${e[3]?`<button class="fly" data-k="${e[3]}">Map</button><button class="go" data-k="${e[3]}">I am here</button><button class="sinfo" data-k="${e[3]}">Info</button>`:""}${e[2]?`<div class="ds">${esc(e[2])}</div>`:""}</div>`; });
+  h+=`</div><p class="ds" style="color:#6b5f45;font-size:18px">Tap a stop's name or "Info" for what's there and what's nearby. "Map" flies to it; "I am here" pins you to it when GPS is off. Agree on a time and place to regroup before any free & easy session.</p>`;
   return h;
 }
 function fmtDate(iso){ const d=new Date(iso+"T00:00:00"); return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); }
@@ -1009,7 +1313,6 @@ const GAME_TABS = [
   {id:'race',   label:'Race',   fn:'Race'},
   {id:'trivia', label:'Trivia', fn:'Trivia'},
   {id:'sushi',  label:'Sushi',  fn:'Sushi'},
-  {id:'arcade', label:'Arcade', fn:'Arcade'},
 ];
 let gameTab='hunt', gameTickTimer=null, gameOpen=false;
 function gameFnName(id){ const t=GAME_TABS.find(t=>t.id===id); return t?t.fn:null; }
@@ -1063,14 +1366,14 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      keep serving a stale module after index.html has updated, which looks exactly
      like "the new feature didn't ship". Bump it on every deploy that changes a
      module. -->
-<script src="art.js?v=20260908g"></script>
-<script src="checklist.js?v=20260908g"></script>
-<script src="handbook.js?v=20260908g"></script>
-<script src="game-hunt.js?v=20260908g"></script>
-<script src="game-race.js?v=20260908g"></script>
-<script src="game-trivia.js?v=20260908g"></script>
-<script src="game-arcade.js?v=20260908g"></script>
-<script src="game-sushi.js?v=20260909a"></script>
-<script src="chat.js?v=20260908g"></script>
+<script src="art.js?v=20260909c"></script>
+<script src="checklist.js?v=20260909c"></script>
+<script src="handbook.js?v=20260909c"></script>
+<script src="game-hunt.js?v=20260909c"></script>
+<script src="game-race.js?v=20260909c"></script>
+<script src="game-trivia.js?v=20260909c"></script>
+<script src="game-sushi.js?v=20260909c"></script>
+<script src="chat.js?v=20260909c"></script>
+<script src="link.js?v=20260909c"></script>
 </body>
 </html>
