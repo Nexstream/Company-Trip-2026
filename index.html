@@ -626,6 +626,7 @@ function renderBook(){
   document.querySelectorAll('.daysel button').forEach(b=>b.onclick=()=>{dayView=+b.dataset.i; renderBook();});
   document.querySelectorAll('.go').forEach(b=>b.onclick=()=>pinTo(b.dataset.k));
   document.querySelectorAll('.fly').forEach(b=>b.onclick=()=>{ const s=SPOTS[b.dataset.k]; setFollow(false); map.flyTo([s.lat,s.lng],16); document.getElementById('book').classList.remove('on'); });
+  if(tab==='pack' && typeof ckOnPackShown==='function') ckOnPackShown();
 }
 function renderItin(){
   const ti=todayIdx();
@@ -696,6 +697,7 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
 
 <!-- pixel art, handbook copy and game modules; all resolved at click time -->
 <script src="art.js"></script>
+<script src="checklist.js"></script>
 <script src="handbook.js"></script>
 <script src="game-hunt.js"></script>
 <script src="game-race.js"></script>
