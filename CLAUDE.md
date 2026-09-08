@@ -34,7 +34,7 @@ Files were uploaded through the **GitHub Contents API** (`gh api`, or the GitHub
 
 ## Architecture
 
-**One global scope, load order matters.** `index.html` holds all CSS, all markup, and a large inline `<script>` (~line 234–699) that defines everything the modules depend on: `sb()`, the `db` helpers, `me`, `players`, `esc()`, `haversine()`, `drawSprite()`, `SPOTS`, `DAYS`, the map, the handbook shell and the games shell. Modules load *after* it at the bottom of the file, in this order:
+**One global scope, load order matters.** `index.html` holds all CSS, all markup, and a large inline `<script>` (~line 234–699) that defines everything the modules depend on: `sb()`, the `db` helpers, `me`, `players`, `esc()`, `haversine()`, `drawSprite()`, `SPOTS`, `DAYS`, the map, the handbook shell and the games shell. Modules load *after* it at the bottom of the file, each with a `?v=<stamp>` cache-buster — **bump that stamp on every deploy that touches a module**, or GitHub Pages and mobile Safari will keep serving the old file after `index.html` has updated, which looks exactly like the change never shipped. Load order:
 
 ```
 art.js → checklist.js → handbook.js → game-hunt.js → game-race.js → game-trivia.js → game-arcade.js → game-sushi.js → chat.js

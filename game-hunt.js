@@ -274,7 +274,8 @@ async function huntFetchClaims(){
    force the camera and rule out a shot already in the camera roll. */
 function huntAskProof(ch){
   if(huntPending.has(ch.id)) return;
-  if(!huntProofInput) return;
+  huntBuildProofInput();
+  if(!huntProofInput){ huntErr[ch.id] = "Can't open the photo picker on this browser."; huntRenderAll(); huntWireList(); return; }
   huntProofFor = ch.id;
   huntProofInput.value = '';        // so re-picking the same file still fires change
   huntProofInput.click();
@@ -379,7 +380,9 @@ function huntBuildProofInput(){
   const i = document.createElement('input');
   i.type = 'file';
   i.accept = 'image/*';
-  i.style.display = 'none';
+  // Visually hidden, NOT display:none — Safari refuses to open the picker for a
+  // programmatic .click() on an input that is not in the layout.
+  i.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
   i.onchange = ()=>{
     const file = i.files && i.files[0];
     const ch = HUNT_BY_ID[huntProofFor];
