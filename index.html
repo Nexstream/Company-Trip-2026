@@ -68,7 +68,12 @@
   #status.hide{display:none}
 
   /* right side buttons */
-  #sidebtns{position:absolute; right:10px; bottom:calc(var(--trayh,140px) + 10px); z-index:500; display:flex; flex-direction:column; gap:8px;
+  /* Capped off the measured chrome vars so the rail can never grow into #hud and
+     swallow taps. overflow-y makes this a scroll container, which clips descendants
+     to the padding box even when nothing scrolls - so the rail is offset by the
+     chat badge's 7px overhang (and the buttons' 3px shadow) and reclaims it as
+     padding, leaving the buttons visually at 10px from the edge. */
+  #sidebtns{position:absolute; right:3px; bottom:calc(var(--trayh,140px) + 7px); padding:0 7px 3px 0; z-index:500; display:flex; flex-direction:column; gap:8px;
     max-height:calc(100vh - var(--hudh,60px) - var(--trayh,140px) - 24px); overflow-y:auto; scrollbar-width:none}
   #sidebtns::-webkit-scrollbar{display:none}
   #sidebtns .rb{position:relative; width:48px; height:48px; background:var(--navy); border:3px solid var(--gold); color:var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Press Start 2P',monospace; font-size:9px; box-shadow:3px 3px 0 rgba(0,0,0,.5)}
