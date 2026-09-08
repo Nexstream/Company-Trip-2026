@@ -24,23 +24,61 @@
 const SUSHI_TOPIC     = "realtime:kansai-sushi";   // shared room, everyone joins
 const SUSHI_ROUND_MS  = 90*1000;                   // 60s play + 30s results
 const SUSHI_PLAY_MS   = 60*1000;
-const SUSHI_STEP_MS   = 3*1000;                    // one ingredient called per 3s
-const SUSHI_STEPS     = SUSHI_PLAY_MS / SUSHI_STEP_MS;
-const SUSHI_GOAL_PER  = 34;                        // roll target per person (~2/3 of a perfect round)
 const SUSHI_PIECES    = 12;                        // segments drawn on the mat
 const SUSHI_GONE_MS   = 12*1000;                   // drop a player off the board after this silence
 const SUSHI_SEND_MS   = 400;                       // throttle: at most 2.5 msgs/sec/phone
 const SUSHI_KEEP_MS   = 3*1000;                    // ...but say hello this often even when idle
 const SUSHI_UI_MS     = 200;                       // local UI loop
+
+/* ---------- the difficulty ramp ----------
+   A round is not one flat speed. It climbs through five levels, each filling
+   exactly 12s of the 60s of play, so the wall-clock derivation stays exact:
+   4*3000 + 5*2400 + 6*2000 + 8*1500 + 10*1200 === SUSHI_PLAY_MS.
+   Two things get harder as the levels go by:
+     ms      — the window you get to find the called ingredient, 3s down to 1.2s
+     shuffle — from RUSH on, the nine boxes are dealt to fresh positions on
+               every single call, so muscle memory stops helping and you have to
+               actually read the grid. Below that the layout is still random,
+               just random once per round, which leaves everyone a few seconds
+               to find their feet.
+   Both are derived from the seeded (rid, step) PRNG, so every phone climbs the
+   same ramp and lays the grid out the same way with nothing to send. */
+const SUSHI_LEVELS = [
+  {ms:3000, n: 4, nm:"PREP",      shuffle:false},
+  {ms:2400, n: 5, nm:"BUSY",      shuffle:false},
+  {ms:2000, n: 6, nm:"RUSH",      shuffle:true },
+  {ms:1500, n: 8, nm:"CRUNCH",    shuffle:true },
+  {ms:1200, n:10, nm:"OVERDRIVE", shuffle:true },
+];
+/* Flat step table: one entry per call, carrying the offset into the round it
+   starts at. Steps are no longer equal, so the live one is looked up rather
+   than divided out of the clock. */
+const SUSHI_STEP_TAB = (function(){
+  const t = []; let at = 0;
+  SUSHI_LEVELS.forEach((L, li)=>{
+    for(let i = 0; i < L.n; i++){ t.push({ at, ms: L.ms, lv: li }); at += L.ms; }
+  });
+  if(at !== SUSHI_PLAY_MS) console.warn("sushi: levels total " + at + "ms, expected " + SUSHI_PLAY_MS);
+  return t;
+})();
+const SUSHI_STEPS = SUSHI_STEP_TAB.length;
 /* Highest score physically reachable in a round: one tap per step, 1 point each
    plus a combo bonus that grows every 5 in a row. Computed rather than guessed
-   so it stays true if the constants above change — it is what remote scores get
+   so it stays true if the levels above change — it is what remote scores get
    clamped to, which blunts the most casual kind of forgery. */
 const SUSHI_MAX_SCORE = (function(){
   let t = 0;
   for(let s = 0; s < SUSHI_STEPS; s++) t += 1 + Math.min(3, Math.floor((s+1)/5));
   return t;
 })();
+/* Roll target per person, derived rather than typed so it tracks the levels. It
+   holds the same fraction of a *perfect* round as the flat-speed version did
+   (67/105 ≈ 34/53) — which keeps the arithmetic honest but deliberately not the
+   difficulty: a perfect round is a harder thing now that 24 of the 33 calls have
+   a 1.2–2.0s window on a grid that keeps moving, so the mat will fill less often
+   than it used to. That is the ramp doing its job, but this 0.64 is the knob to
+   drop (0.55 or so) if THE ROLL IS COMPLETE stops happening at all on the trip. */
+const SUSHI_GOAL_PER  = Math.round(SUSHI_MAX_SCORE * 0.64);
 
 const SUSHI_ING = [
   {k:"rice",  e:"🍚", n:"Rice"},
@@ -64,6 +102,7 @@ const SUSHI = {
   step: -1,          // step within the round
   tapped: false,     // already scored this step?
   lastWrong: false,
+  lv: -1,            // level we last painted, so a level-up can flash
   board: [],         // snapshot shown during the results phase
   complete: false,   // did the room finish the roll this round?
   uiTimer: null,
@@ -82,21 +121,34 @@ function sushiSetBest(v){ try{ localStorage.setItem(sushiBestKey(), String(v)); 
 
 /* ---------- clock-derived round + deterministic ingredient sequence ---------- */
 function sushiRoundId(){ return Math.floor(Date.now() / SUSHI_ROUND_MS); }
+/* Which call is live `el` ms into the round. Unequal steps cannot be divided,
+   so the table is walked backwards — 33 entries, five times a second, free. */
+function sushiStepAt(el){
+  for(let i = SUSHI_STEPS - 1; i >= 0; i--) if(el >= SUSHI_STEP_TAB[i].at) return i;
+  return 0;
+}
 function sushiPhase(){
   const el = Date.now() % SUSHI_ROUND_MS;
   const playing = el < SUSHI_PLAY_MS;
+  const i = playing ? sushiStepAt(el) : -1;
+  const st = playing ? SUSHI_STEP_TAB[i] : null;
   return {
     rid: sushiRoundId(),
     playing,
-    step: playing ? Math.floor(el / SUSHI_STEP_MS) : -1,
-    stepLeft: playing ? SUSHI_STEP_MS - (el % SUSHI_STEP_MS) : 0,
+    step: i,
+    lv: st ? st.lv : -1,
+    stepMs: st ? st.ms : SUSHI_LEVELS[0].ms,      // never 0: the bar divides by it
+    stepLeft: st ? (st.at + st.ms - el) : 0,
     playLeft: playing ? SUSHI_PLAY_MS - el : 0,
     nextIn: SUSHI_ROUND_MS - el,
   };
 }
-/* mulberry32 over a cheap (rid, step) hash — identical on every phone */
-function sushiRand(rid, step){
-  let h = (rid * 2654435761) ^ ((step + 1) * 1597334677);
+/* mulberry32 over a cheap (rid, step, salt) hash — identical on every phone.
+   `salt` splits the one seed into independent streams: 0 (the default, so every
+   existing two-argument call is untouched) picks the ingredient, and the box
+   shuffle draws on its own salts so changing one does not move the other. */
+function sushiRand(rid, step, salt){
+  let h = (rid * 2654435761) ^ ((step + 1) * 1597334677) ^ ((salt || 0) * 2246822519);
   h = (h ^ (h >>> 15)) >>> 0;
   h = (h + 0x6D2B79F5) >>> 0;
   let t = h;
@@ -108,7 +160,7 @@ function sushiCalled(rid, step){
   if(step < 0) return null;
   // Walk the round from the start: the anti-repeat nudge below shifts an index,
   // so "what was called last step" has to be the *resolved* value, not the raw
-  // roll. 20 steps a round, so the loop is free.
+  // roll. 33 steps a round, so the loop is free.
   let prev = -1, i = 0;
   for(let s = 0; s <= step; s++){
     i = Math.floor(sushiRand(rid, s) * SUSHI_ING.length) % SUSHI_ING.length;
@@ -116,6 +168,27 @@ function sushiCalled(rid, step){
     prev = i;
   }
   return SUSHI_ING[i];
+}
+
+/* ---------- where the nine boxes sit ----------
+   Also derived from (rid, step): the grid has to be identical on every phone,
+   because a ramp where one player kept a settled layout and another had it
+   reshuffled under them would not be the same game. `seed` is the step number
+   once shuffling kicks in, and -1 for the early levels — that shared seed is
+   what makes their layout hold for the whole round. */
+const sushiLay = {};                                        // "rid:seed" -> ingredients
+function sushiLayout(rid, step){
+  const i = Math.max(0, Math.min(SUSHI_STEPS - 1, step));   // step is -1 between rounds
+  const seed = SUSHI_LEVELS[SUSHI_STEP_TAB[i].lv].shuffle ? i : -1;
+  const key = rid + ":" + seed;
+  if(sushiLay[key]) return sushiLay[key];
+  const a = SUSHI_ING.slice();
+  for(let j = a.length - 1; j > 0; j--){                    // Fisher-Yates
+    const k = Math.floor(sushiRand(rid, seed, 101 + j) * (j + 1)) % (j + 1);
+    const t = a[j]; a[j] = a[k]; a[k] = t;
+  }
+  sushiLay[key] = a;
+  return a;
 }
 
 /* =========================================================
@@ -272,6 +345,9 @@ function renderSushi(){
 .sushi-btn.hit{background:#4c8a52;border-color:#2f5a33}
 .sushi-btn.miss{background:var(--red,#c8442b);border-color:#7a2515}
 .sushi-btn[disabled]{opacity:.5}
+.sushi-lvl{font-family:'Press Start 2P',monospace;font-size:8px;text-align:center;color:var(--gold2,#8e6f2a);margin:9px 0 7px;line-height:1.5}
+.sushi-lvl.up{color:var(--red,#c8442b);animation:sushiUp .4s steps(2) 2}   /* 0.8s: fits inside even a 1.2s call */
+@keyframes sushiUp{0%,100%{opacity:1}50%{opacity:.2}}
 .sushi-you{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;font-size:19px}
 .sushi-you b{font-size:24px}
 .sushi-you .cmb{color:var(--red,#c8442b)}
@@ -301,7 +377,7 @@ function renderSushi(){
   <div class="sushi-card" id="sushiStage"></div>
   <div class="sushi-card" id="sushiMatCard"></div>
   <div class="sushi-board" id="sushiBoard"><h5>THE KITCHEN</h5><div class="sushi-empty">Waiting for the round…</div></div>
-  <div class="sushi-help">Everyone with this tab open is in the same round. Tap the ingredient that's called — 5 in a row starts a combo. Fill the mat together before time runs out.</div>
+  <div class="sushi-help">Everyone with this tab open is in the same round. Tap the ingredient that's called — 5 in a row starts a combo. The kitchen speeds up every 12 seconds, and from LV 3 the boxes are dealt to new positions on every call, so read before you tap. Fill the mat together before time runs out.</div>
 </div>`;
 }
 
@@ -341,7 +417,10 @@ function sushiRenderStage(){
   }
 
   const called = sushiCalled(ph.rid, ph.step);
-  const pct = Math.round(100 * (ph.stepLeft / SUSHI_STEP_MS));
+  const lay = sushiLayout(ph.rid, ph.step);
+  const L = SUSHI_LEVELS[ph.lv];
+  const pct = Math.round(100 * (ph.stepLeft / ph.stepMs));
+  const up = SUSHI.lv !== -1 && ph.lv > SUSHI.lv;      // climbed a level just now
   stage.innerHTML = `
     <div class="sushi-ticket">
       <div class="lbl">ORDER UP — ADD</div>
@@ -349,14 +428,16 @@ function sushiRenderStage(){
       <div class="nm">${called.n}</div>
       <div class="sushi-bar"><i style="width:${pct}%"></i></div>
     </div>
+    <div class="sushi-lvl${up?" up":""}">${up?"LEVEL UP! ":""}LV ${ph.lv+1}/${SUSHI_LEVELS.length} · ${L.nm} · ${(L.ms/1000).toFixed(1)}s A CALL${L.shuffle?" · BOXES MOVING":""}</div>
     <div class="sushi-grid" id="sushiGrid">
-      ${SUSHI_ING.map((g,i)=>`<button type="button" class="sushi-btn" data-k="${g.k}" title="${esc(g.n)}">${g.e}<span style="display:none">${i+1}</span></button>`).join("")}
+      ${lay.map((g,i)=>`<button type="button" class="sushi-btn" data-k="${g.k}" title="${esc(g.n)}">${g.e}<span style="display:none">${i+1}</span></button>`).join("")}
     </div>
     <div class="sushi-you">
       <span>You <b>${SUSHI.score}</b> pt${SUSHI.score===1?"":"s"}</span>
       <span class="cmb">${SUSHI.combo >= 5 ? "COMBO ×"+(1+Math.min(3,Math.floor(SUSHI.combo/5))) : (SUSHI.combo? SUSHI.combo+" in a row" : "&nbsp;")}</span>
     </div>
-    <div class="sushi-clock">${Math.ceil(ph.playLeft/1000)}s LEFT · STEP ${ph.step+1}/${SUSHI_STEPS}</div>`;
+    <div class="sushi-clock">${Math.ceil(ph.playLeft/1000)}s LEFT · CALL ${ph.step+1}/${SUSHI_STEPS}</div>`;
+  SUSHI.lv = ph.lv;
   sushiWireGrid();
   sushiPaintGrid();
 }
@@ -426,6 +507,15 @@ function sushiRenderAll(){
 function sushiTap(k){
   const ph = sushiPhase();
   if(!ph.playing || SUSHI.tapped) return;
+  // The stage only repaints when sushiLoop notices the step changed, so for up
+  // to SUSHI_UI_MS after a boundary the grid on screen still belongs to the
+  // previous call — and from RUSH on, to a layout that has since been re-dealt.
+  // Scoring such a tap against the new call would mark it wrong AND burn the new
+  // call through SUSHI.tapped, punishing twice for one stale frame — 200ms of a
+  // 1200ms OVERDRIVE call, where it hurts most. SUSHI.step is by definition the
+  // call that is painted, so anything else is stale and simply does not count;
+  // the combo for the call they were too slow on is already broken by sushiLoop.
+  if(ph.step !== SUSHI.step) return;
   const called = sushiCalled(ph.rid, ph.step);
   if(!called) return;
   SUSHI.tapped = true;
@@ -446,10 +536,11 @@ function sushiTap(k){
 
 function sushiEnterRound(rid){
   SUSHI.rid = rid;
-  SUSHI.score = 0; SUSHI.combo = 0; SUSHI.step = -1;
+  SUSHI.score = 0; SUSHI.combo = 0; SUSHI.step = -1; SUSHI.lv = -1;
   SUSHI.tapped = false; SUSHI.lastWrong = false;
   SUSHI.board = []; SUSHI.complete = false;
   SUSHI.room = {};                 // last round's scores are meaningless now
+  for(const k in sushiLay) delete sushiLay[k];   // and so are its box positions
   sushiPush(true);
 }
 function sushiEndRound(){
@@ -485,9 +576,9 @@ function sushiLoop(){
   sushiRenderConn();
   if(ph.playing){
     const bar = SUSHI.root.querySelector(".sushi-bar i");
-    if(bar) bar.style.width = Math.round(100 * (ph.stepLeft / SUSHI_STEP_MS)) + "%";
+    if(bar) bar.style.width = Math.round(100 * (ph.stepLeft / ph.stepMs)) + "%";
     const clock = SUSHI.root.querySelector(".sushi-clock");
-    if(clock) clock.textContent = Math.ceil(ph.playLeft/1000) + "s LEFT · STEP " + (ph.step+1) + "/" + SUSHI_STEPS;
+    if(clock) clock.textContent = Math.ceil(ph.playLeft/1000) + "s LEFT · CALL " + (ph.step+1) + "/" + SUSHI_STEPS;
     sushiRenderMat();
     sushiRenderBoard();
   }else{
@@ -505,7 +596,11 @@ function sushiLoop(){
 function sushiKey(e){
   if(!SUSHI.root) return;
   const n = "123456789".indexOf(e.key);
-  if(n >= 0 && SUSHI_ING[n]) sushiTap(SUSHI_ING[n].k);
+  if(n < 0) return;
+  const ph = sushiPhase();
+  if(!ph.playing) return;
+  const lay = sushiLayout(ph.rid, ph.step);   // 1-9 read off the grid as shown
+  if(lay[n]) sushiTap(lay[n].k);
 }
 
 /* =========================================================
@@ -514,7 +609,7 @@ function sushiKey(e){
 function initSushi(){
   SUSHI.root = document.getElementById("gamePage");
   SUSHI.best = sushiGetBest();
-  SUSHI.rid = -1; SUSHI.step = -1;
+  SUSHI.rid = -1; SUSHI.step = -1; SUSHI.lv = -1;
   SUSHI.room = {}; SUSHI.board = []; SUSHI.complete = false;
   SUSHI.score = 0; SUSHI.combo = 0; SUSHI.sentAt = 0; SUSHI.dirty = true; SUSHI.lastSec = -1;
   sushiRT.open(sushiOnMsg);
