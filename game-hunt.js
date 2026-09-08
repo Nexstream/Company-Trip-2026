@@ -147,7 +147,7 @@ function renderHunt(){
 /* {ok} if this device is reporting a live position inside Japan, else {ok:false, why}. */
 function huntWhereAmI(){
   if(me.lat==null || me.lng==null) return {ok:false, why:"Turn location on to claim — proof has to be shot in Japan."};
-  if(me.manual) return {ok:false, why:"You are pinned to a stop. Claiming needs a real GPS fix, so switch back to live GPS from ⋯ › Pin to a stop."};
+  if(me.manual) return {ok:false, why:"You are pinned to a stop. Claiming needs a real GPS fix, so switch back to live GPS from MORE › Pin to a stop."};
   if(me.ts && Date.now()-me.ts > HUNT_FIX_MAX_AGE) return {ok:false, why:"Your location is stale. Give GPS a moment to catch up, then try again."};
   const j = HUNT_JAPAN;
   if(me.lat<j.latMin || me.lat>j.latMax || me.lng<j.lngMin || me.lng>j.lngMax)
