@@ -7,23 +7,62 @@
 
    One shared kitchen: everybody with the tab open is in the SAME round.
 
-   How it stays in sync without a server or a host
-   -----------------------------------------------
-   Rounds are derived from the wall clock (same trick as Trivia), and the
-   sequence of called ingredients inside a round comes from a seeded PRNG over
-   (roundId, step). Every phone therefore computes an identical round on its
-   own — no message needs to arrive on time for the game to be fair.
+   How a round stays in sync without a server or a host
+   -----------------------------------------------------
+   Nothing runs until somebody presses START. A round is identified by
+   `startAt`, the absolute instant (epoch ms) chosen by whoever pressed it —
+   not a slice of the wall clock the way the old design worked. Every phone
+   folds that one instant into a seed and feeds it to the same PRNG used for
+   the ingredient calls, the difficulty ramp and the box shuffle, so once a
+   phone knows `startAt` it can compute the *entire* round on its own — the
+   calls, when each one lands, how the grid is laid out — with nothing else
+   needing to arrive on time or in order.
+
+   `startAt` itself does need to arrive, though, and broadcast is lossy: it is
+   server-relayed and unacked, so a message can simply vanish. The fix is that
+   `startAt` doesn't travel only on a one-shot "start" event — it rides on
+   every periodic state ping too, the same ping that carries score and combo.
+   A phone that missed the START message picks the round up from the next
+   ping instead, at most SUSHI_KEEP_MS later. The "start" broadcast is purely
+   a latency optimisation so everyone who *did* get it starts counting down
+   immediately instead of waiting for the next ping.
+
+   Two people can tap START at once. There is no host to arbitrate, so every
+   phone applies the same rule to whatever it hears: the earliest `startAt`
+   wins, and only while still counting down — once play has begun, swapping
+   rounds would wipe a score that is already on the board. Every phone applying
+   that rule independently is what makes them converge on one round without
+   anybody being in charge.
+
+   A round started while everyone else is still reading the previous round's
+   results is a different case, not the same-moment tie above — there is no
+   score on the board to protect, because our own round already ended. So a
+   newer `startAt` heard during our results phase is adopted immediately
+   rather than only after our own intermission runs out; otherwise everybody
+   who didn't personally tap START ANOTHER would sit out most of the next
+   round's play and land in it as a spectator.
+
+   Clock skew between phones offsets a round by exactly that skew — the same
+   assumption the old clock-derived design already made, just now anchored to
+   one person's START tap instead of to midnight UTC.
 
    Realtime is used only to SHOW each other: scores, combos and who is in the
    kitchen travel over a Supabase Realtime *Broadcast* channel. Broadcast is
    server-relayed and ephemeral — no table, no RLS policy, no publication
    change, nothing to clean up afterwards. If the socket never connects the
-   game still plays; it just says so and scores you solo.
+   game still plays solo rounds; it just says so and doesn't share scores.
    ========================================================= */
 
-const SUSHI_TOPIC     = "realtime:kansai-sushi";   // shared room, everyone joins
-const SUSHI_ROUND_MS  = 90*1000;                   // 60s play + 30s results
+// Bumped from kansai-sushi: a phone still serving a cached pre-lobby
+// game-sushi.js would keep broadcasting clock-derived round state, and a
+// lobby client hearing that would try to make sense of a "round" nobody
+// started. The version bump keeps the two protocols from ever sharing a room.
+const SUSHI_TOPIC     = "realtime:kansai-sushi-v2";
 const SUSHI_PLAY_MS   = 60*1000;
+const SUSHI_COUNT_MS  = 5*1000;                    // lobby countdown between START and the first call
+const SUSHI_RESULT_MS = 20*1000;                   // results held on screen, then back to the lobby
+const SUSHI_LATE_MS   = 3*1000;                    // adopt-and-play this far into play; later than that you spectate
+const SUSHI_FUTURE_MS = 30*1000;                   // clock-skew tolerance on an incoming startAt
 const SUSHI_PIECES    = 12;                        // segments drawn on the mat
 const SUSHI_GONE_MS   = 12*1000;                   // drop a player off the board after this silence
 const SUSHI_SEND_MS   = 400;                       // throttle: at most 2.5 msgs/sec/phone
@@ -32,7 +71,7 @@ const SUSHI_UI_MS     = 200;                       // local UI loop
 
 /* ---------- the difficulty ramp ----------
    A round is not one flat speed. It climbs through five levels, each filling
-   exactly 12s of the 60s of play, so the wall-clock derivation stays exact:
+   exactly 12s of the 60s of play, so the arithmetic stays exact:
    4*3000 + 5*2400 + 6*2000 + 8*1500 + 10*1200 === SUSHI_PLAY_MS.
    Two things get harder as the levels go by:
      ms      — the window you get to find the called ingredient, 3s down to 1.2s
@@ -41,7 +80,7 @@ const SUSHI_UI_MS     = 200;                       // local UI loop
                actually read the grid. Below that the layout is still random,
                just random once per round, which leaves everyone a few seconds
                to find their feet.
-   Both are derived from the seeded (rid, step) PRNG, so every phone climbs the
+   Both are derived from the seeded (seed, step) PRNG, so every phone climbs the
    same ramp and lays the grid out the same way with nothing to send. */
 const SUSHI_LEVELS = [
   {ms:3000, n: 4, nm:"PREP",      shuffle:false},
@@ -94,11 +133,17 @@ const SUSHI_ING = [
 
 const SUSHI = {
   root: null,
-  room: {},          // player_id -> {id,name,av,score,combo,rid,seen}
+  room: {},          // player_id -> {id,name,av,score,combo,sa,sp,seen}
   score: 0,
   combo: 0,
   best: 0,
-  rid: -1,           // round we are currently playing
+  startAt: 0,        // instant the current round starts/started; 0 = lobby
+  seed: 0,            // uint32 fold of startAt, fed to the PRNG
+  lastEnded: 0,       // startAt of the last round we finished, so a stale adopt is rejected
+  spectating: false,  // joined mid-play: watching, not scoring, until the next round
+  ended: false,       // sushiEndRound has already run for this startAt
+  mode: "",           // last phase mode painted, so a mode change forces a re-render
+  lastResult: null,   // {board, complete} from the round that just finished, shown in the lobby
   step: -1,          // step within the round
   tapped: false,     // already scored this step?
   lastWrong: false,
@@ -119,36 +164,47 @@ function sushiBestKey(){ return "sushiRollBest_" + sushiMeId(); }
 function sushiGetBest(){ try{ return +(localStorage.getItem(sushiBestKey())||0); }catch(e){ return 0; } }
 function sushiSetBest(v){ try{ localStorage.setItem(sushiBestKey(), String(v)); }catch(e){} }
 
-/* ---------- clock-derived round + deterministic ingredient sequence ---------- */
-function sushiRoundId(){ return Math.floor(Date.now() / SUSHI_ROUND_MS); }
+/* ---------- round identity + deterministic ingredient sequence ---------- */
+/* A round is identified by the instant it starts, which is too large to feed
+   the PRNG directly. Folded to a uint32 with imul so every phone derives a
+   bit-identical seed from the same startAt. */
+function sushiSeed(startAt){
+  const lo = startAt % 1000000, hi = Math.floor(startAt / 1000000);
+  return (Math.imul(lo, 2654435761) ^ Math.imul(hi, 1597334677)) >>> 0;
+}
 /* Which call is live `el` ms into the round. Unequal steps cannot be divided,
    so the table is walked backwards — 33 entries, five times a second, free. */
 function sushiStepAt(el){
   for(let i = SUSHI_STEPS - 1; i >= 0; i--) if(el >= SUSHI_STEP_TAB[i].at) return i;
   return 0;
 }
+/* Everything about "where are we" derived from SUSHI.startAt rather than the
+   wall clock: 0 means nobody has started a round, so we're in the lobby. */
 function sushiPhase(){
-  const el = Date.now() % SUSHI_ROUND_MS;
-  const playing = el < SUSHI_PLAY_MS;
-  const i = playing ? sushiStepAt(el) : -1;
-  const st = playing ? SUSHI_STEP_TAB[i] : null;
-  return {
-    rid: sushiRoundId(),
-    playing,
-    step: i,
-    lv: st ? st.lv : -1,
-    stepMs: st ? st.ms : SUSHI_LEVELS[0].ms,      // never 0: the bar divides by it
-    stepLeft: st ? (st.at + st.ms - el) : 0,
-    playLeft: playing ? SUSHI_PLAY_MS - el : 0,
-    nextIn: SUSHI_ROUND_MS - el,
-  };
+  const sa = SUSHI.startAt;
+  const base = { startAt: sa, playing:false, step:-1, lv:-1, stepMs:SUSHI_LEVELS[0].ms,
+                 stepLeft:0, playLeft:0, countLeft:0, resultLeft:0 };
+  if(!sa) return Object.assign(base, { mode:"lobby" });
+  const el = Date.now() - sa;
+  if(el < 0)               return Object.assign(base, { mode:"count",  countLeft: -el });
+  if(el < SUSHI_PLAY_MS){
+    const i = sushiStepAt(el), st = SUSHI_STEP_TAB[i];
+    return Object.assign(base, { mode:"play", playing:true, step:i, lv:st.lv, stepMs:st.ms,
+                                 stepLeft: st.at + st.ms - el, playLeft: SUSHI_PLAY_MS - el });
+  }
+  if(el < SUSHI_PLAY_MS + SUSHI_RESULT_MS)
+    return Object.assign(base, { mode:"result", resultLeft: SUSHI_PLAY_MS + SUSHI_RESULT_MS - el });
+  return Object.assign(base, { mode:"over" });
 }
-/* mulberry32 over a cheap (rid, step, salt) hash — identical on every phone.
+/* mulberry32 over a cheap (seed, step, salt) hash — identical on every phone.
    `salt` splits the one seed into independent streams: 0 (the default, so every
    existing two-argument call is untouched) picks the ingredient, and the box
-   shuffle draws on its own salts so changing one does not move the other. */
+   shuffle draws on its own salts so changing one does not move the other.
+   Math.imul is what keeps this exact for a full 32-bit seed — the plain `*`
+   this replaced silently drops low bits once the seed gets large, which would
+   have made consecutive rounds roll near-identical sequences. */
 function sushiRand(rid, step, salt){
-  let h = (rid * 2654435761) ^ ((step + 1) * 1597334677) ^ ((salt || 0) * 2246822519);
+  let h = (Math.imul(rid|0, 2654435761) ^ Math.imul(step + 1, 1597334677) ^ Math.imul(salt||0, 2246822519)) >>> 0;
   h = (h ^ (h >>> 15)) >>> 0;
   h = (h + 0x6D2B79F5) >>> 0;
   let t = h;
@@ -278,18 +334,56 @@ const sushiRT = {
   },
 };
 
+/* ---------- adopting a round someone else started ----------
+   Every guard here is about a message that cannot be trusted to be timely,
+   ordered, or sane — broadcast is lossy and unauthenticated. */
+function sushiAdopt(sa){
+  sa = Math.floor(sa);
+  if(!isFinite(sa) || sa <= 0) return;
+  const now = Date.now();
+  if(sa <= SUSHI.lastEnded) return;                          // a round we already finished
+  if(sa > now + SUSHI_COUNT_MS + SUSHI_FUTURE_MS) return;    // nonsense, or a wildly skewed clock
+  if(now - sa >= SUSHI_PLAY_MS + SUSHI_RESULT_MS) return;    // long over
+  if(!SUSHI.startAt){ sushiEnterRound(sa); return; }
+  if(sa === SUSHI.startAt) return;
+  // Someone tapped START ANOTHER while we were still reading the results. Those
+  // results are already history, so jump to the new round rather than sit out the
+  // rest of the intermission and then have to spectate a round we were invited to.
+  // Gated on our own play being over, so this can never yank a live round away.
+  if(sa > SUSHI.startAt && now - SUSHI.startAt >= SUSHI_PLAY_MS){
+    sushiEndRound();          // banks the best score and stamps lastEnded before we move on
+    sushiEnterRound(sa);
+    return;
+  }
+  // Two people tapped START at the same moment: the earliest start wins, which is
+  // a rule every phone can apply on its own, so they all converge on one round.
+  // Only while still counting down — swapping rounds once play has begun would
+  // wipe a score that is already on the board. The `sa > now` term matters too:
+  // without it, a straggler's ping for a round that has already started (or
+  // already finished) could still read as "earlier" than the countdown we are
+  // legitimately in and steal it out from under us.
+  if(sa < SUSHI.startAt && sa > now && now < SUSHI.startAt) sushiEnterRound(sa);
+}
+
 function sushiOnMsg(event, p){
+  if(event === "start"){
+    if(p && p.sa) sushiAdopt(+p.sa);
+    return;
+  }
   if(event !== "state" || !p || !p.id) return;
   if(p.id === sushiMeId()) return;                       // our own echo, ignore
-  SUSHI.room[p.id] = {
+  const entry = {
     id: String(p.id).slice(0,64),
     name: String(p.name || "Someone").slice(0,40),
     av: +p.av || 0,
     score: Math.max(0, Math.min(SUSHI_MAX_SCORE, +p.score || 0)),
     combo: Math.max(0, Math.min(SUSHI_STEPS, +p.combo || 0)),
-    rid: +p.rid || 0,
+    sa: Math.floor(+p.sa) || 0,
+    sp: !!p.sp,
     seen: Date.now(),
   };
+  SUSHI.room[entry.id] = entry;
+  sushiAdopt(entry.sa);
 }
 function sushiPush(force){
   const now = Date.now();
@@ -297,21 +391,87 @@ function sushiPush(force){
   if(now - SUSHI.sentAt < SUSHI_SEND_MS && !force) return;
   const ok = sushiRT.broadcast("state", {
     id: sushiMeId(), name: sushiMeName(), av: sushiMeAv(),
-    score: SUSHI.score, combo: SUSHI.combo, rid: SUSHI.rid,
+    score: SUSHI.score, combo: SUSHI.combo,
+    sa: SUSHI.startAt, sp: SUSHI.spectating ? 1 : 0,
   });
   if(ok){ SUSHI.sentAt = now; SUSHI.dirty = false; }
 }
 
-/* ---------- room bookkeeping ---------- */
-function sushiRoom(){
-  const now = Date.now(), out = [];
+/* ---------- starting / entering / ending a round ---------- */
+function sushiStart(){
+  // one already counting down or in play — the button should be hidden anyway
+  if(SUSHI.startAt && Date.now() - SUSHI.startAt < SUSHI_PLAY_MS) return;
+  // Bank the round we are leaving before scheduling the next one. Without this,
+  // lastEnded stays 0 for anyone who arrived during an intermission and never
+  // played, and a straggler's ping for the finished round would win the
+  // earliest-start tie-break and drag them back onto its results screen.
+  sushiEndRound();
+  const sa = Date.now() + SUSHI_COUNT_MS;
+  sushiEnterRound(sa);
+  sushiRT.broadcast("start", { sa });
+  sushiPush(true);
+  sushiRenderAll();
+}
+
+function sushiEnterRound(sa){
+  SUSHI.startAt = sa;
+  SUSHI.seed = sushiSeed(sa);
+  SUSHI.score = 0; SUSHI.combo = 0; SUSHI.step = -1; SUSHI.lv = -1;
+  SUSHI.tapped = false; SUSHI.lastWrong = false;
+  SUSHI.board = []; SUSHI.complete = false; SUSHI.ended = false;
+  // Joined after the calls had already started: watch this one out rather than
+  // enter with a handicap nobody else has.
+  SUSHI.spectating = (Date.now() - sa) > SUSHI_LATE_MS;
+  // Zero the roster's stale scores but KEEP the roster — it is the lobby list, and
+  // wiping it would show "1 in the kitchen" through the whole countdown.
+  for(const id in SUSHI.room){ SUSHI.room[id].score = 0; SUSHI.room[id].combo = 0; }
+  for(const k in sushiLay) delete sushiLay[k];   // last round's box positions
+  SUSHI.lastSec = -1; SUSHI.dirty = true;
+  sushiPush(true);
+}
+
+function sushiEndRound(){
+  if(SUSHI.ended || !SUSHI.startAt) return;
+  SUSHI.ended = true;
+  SUSHI.board = sushiPlayers().map(p=>({...p}));   // a real snapshot: sushiPlayers hands back live roster objects
+  SUSHI.lastEnded = SUSHI.startAt;
+  if(!SUSHI.spectating && SUSHI.score > SUSHI.best){ SUSHI.best = SUSHI.score; sushiSetBest(SUSHI.best); }
+  SUSHI.lastResult = { board: SUSHI.board, complete: SUSHI.complete };
+}
+
+function sushiToLobby(){
+  SUSHI.startAt = 0; SUSHI.seed = 0; SUSHI.step = -1; SUSHI.lv = -1;
+  SUSHI.score = 0; SUSHI.combo = 0;
+  SUSHI.spectating = false; SUSHI.complete = false; SUSHI.board = [];
+  SUSHI.lastSec = -1; SUSHI.dirty = true;
+  sushiPush(true);
+}
+
+/* ---------- roster: the lobby list and the scoreboard are different lists ---------- */
+function sushiSelf(){
+  return { id:sushiMeId(), name:sushiMeName(), av:sushiMeAv(), score:SUSHI.score,
+           combo:SUSHI.combo, sa:SUSHI.startAt, sp:SUSHI.spectating, mine:true };
+}
+function sushiPrune(){
+  const now = Date.now();
+  for(const id in SUSHI.room) if(now - SUSHI.room[id].seen > SUSHI_GONE_MS) delete SUSHI.room[id];
+}
+function sushiPresent(){          // the lobby: anyone with the tab open
+  sushiPrune();
+  const out = [];
+  for(const id in SUSHI.room) out.push(SUSHI.room[id]);
+  out.push(sushiSelf());
+  out.sort((a,b)=> a.name.localeCompare(b.name));
+  return out;
+}
+function sushiPlayers(){          // the scoreboard: this round's chefs, spectators excluded
+  sushiPrune();
+  const out = [];
   for(const id in SUSHI.room){
     const p = SUSHI.room[id];
-    if(now - p.seen > SUSHI_GONE_MS){ delete SUSHI.room[id]; continue; }
-    if(p.rid === SUSHI.rid) out.push(p);
+    if(p.sa === SUSHI.startAt && !p.sp) out.push(p);
   }
-  out.push({ id: sushiMeId(), name: sushiMeName(), av: sushiMeAv(),
-             score: SUSHI.score, combo: SUSHI.combo, rid: SUSHI.rid, mine: true });
+  if(SUSHI.startAt && !SUSHI.spectating) out.push(sushiSelf());
   out.sort((a,b)=> b.score - a.score || a.name.localeCompare(b.name));
   return out;
 }
@@ -368,6 +528,12 @@ function renderSushi(){
 .sushi-board .sushi-empty{color:#8ea0c4}
 .sushi-mvp{font-size:19px;color:var(--ink,#2a2418);text-align:center}
 .sushi-mvp b{color:var(--red,#c8442b)}
+.sushi-start{display:block;width:100%;margin-top:12px;min-height:52px;font-family:'Press Start 2P',monospace;
+  font-size:11px;line-height:1.6;background:var(--red,#c8442b);color:#fff;border:3px solid var(--ink,#2a2418);
+  box-shadow:3px 3px 0 rgba(0,0,0,.3)}
+.sushi-start:active{transform:translate(1px,1px);box-shadow:2px 2px 0 rgba(0,0,0,.3)}
+.sushi-watch{font-family:'Press Start 2P',monospace;font-size:9px;text-align:center;color:var(--gold2,#8e6f2a);
+  padding:18px 6px;line-height:1.7}
 .sushi-help{font-size:15px;color:#8a7c5c;margin-top:10px;text-align:center}
 @media (max-width:360px){ .sushi-ticket .big{font-size:52px} .sushi-btn{min-height:56px;font-size:30px} }
 </style>
@@ -376,8 +542,8 @@ function renderSushi(){
   <div class="sushi-conn" id="sushiConn">connecting…</div>
   <div class="sushi-card" id="sushiStage"></div>
   <div class="sushi-card" id="sushiMatCard"></div>
-  <div class="sushi-board" id="sushiBoard"><h5>THE KITCHEN</h5><div class="sushi-empty">Waiting for the round…</div></div>
-  <div class="sushi-help">Everyone with this tab open is in the same round. Tap the ingredient that's called — 5 in a row starts a combo. The kitchen speeds up every 12 seconds, and from LV 3 the boxes are dealt to new positions on every call, so read before you tap. Fill the mat together before time runs out.</div>
+  <div class="sushi-board" id="sushiBoard"><h5>IN THE LOBBY</h5><div class="sushi-empty">Waiting for someone to open this tab…</div></div>
+  <div class="sushi-help">Anyone can tap START ROUND — it counts down for everyone at once, then the kitchen calls out ingredients: tap the one that's called, 5 in a row starts a combo. Speed climbs every 12 seconds, and from LV 3 the boxes are dealt to new positions on every call, so read before you tap. Fill the mat together before time runs out. Open the tab mid-round and you spectate this one, then join the next.</div>
 </div>`;
 }
 
@@ -388,16 +554,53 @@ function sushiRenderConn(){
   el.className = "sushi-conn " + s;
   el.textContent = s === "live" ? "● LIVE — SHARED KITCHEN"
     : s === "connecting" ? "○ connecting to the kitchen…"
-    : "○ OFFLINE — PLAYING SOLO, SCORES NOT SHARED";
+    : "○ OFFLINE — SOLO ROUNDS ONLY, SCORES NOT SHARED";
 }
 
 function sushiRenderStage(){
   const stage = SUSHI.root && SUSHI.root.querySelector("#sushiStage");
   if(!stage) return;
   const ph = sushiPhase();
+  // The loop can enter here with a "result" phase and the clock can tick over to
+  // "over" before this line runs. There is nothing to paint for a round that is
+  // finished but not yet cleared — the next loop tick drops us to the lobby.
+  if(ph.mode === "over") return;
 
-  if(!ph.playing){
-    const board = SUSHI.board.length ? SUSHI.board : sushiRoom();
+  if(ph.mode === "lobby"){
+    const solo = sushiRT.status() !== "live";
+    const lr = SUSHI.lastResult;
+    let mvpLine = "";
+    if(lr){
+      const mvp = lr.board && lr.board[0];
+      mvpLine = `<div class="sushi-mvp" style="margin-top:10px">Last round: ${
+        mvp && mvp.score > 0 ? `MVP <b>${esc(mvp.name)}</b> — ${mvp.score} pt${mvp.score===1?"":"s"}`
+                             : "the mat didn't fill."
+      }</div>`;
+    }
+    stage.innerHTML = `
+      <div class="sushi-ticket">
+        <div class="lbl">LOBBY</div>
+        <div class="big">🍱</div>
+        <div class="nm">${solo ? "Offline — you can still run a solo round" : "Waiting for a chef to start the round"}</div>
+      </div>
+      ${mvpLine}
+      <button type="button" class="sushi-start" id="sushiStart">${solo ? "START SOLO ROUND" : "START ROUND"}</button>
+      <div class="sushi-roomline"><span>${sushiPresent().length} in the lobby</span><span>Your best ${SUSHI.best} pt${SUSHI.best===1?"":"s"}</span></div>`;
+    return;
+  }
+
+  if(ph.mode === "count"){
+    stage.innerHTML = `
+      <div class="sushi-ticket">
+        <div class="lbl">STARTING IN</div>
+        <div class="big">${Math.ceil(ph.countLeft/1000)}</div>
+        <div class="nm">${sushiPresent().length} chefs in the kitchen</div>
+      </div>`;
+    return;
+  }
+
+  if(ph.mode === "result"){
+    const board = SUSHI.board.length ? SUSHI.board : sushiPlayers();
     const mvp = board[0];
     const total = board.reduce((s,p)=>s+p.score, 0);
     const goal = sushiGoal(board.length);
@@ -412,15 +615,33 @@ function sushiRenderStage(){
       </div>
       <div class="sushi-roomline"><span>Room total</span><span>${total} / ${goal}</span></div>
       <div class="sushi-roomline"><span>Your best round</span><span>${SUSHI.best} pt${SUSHI.best===1?"":"s"}</span></div>
-      <div class="sushi-clock">NEXT ROUND IN ${Math.ceil(ph.nextIn/1000)}s</div>`;
+      <button type="button" class="sushi-start" id="sushiStart">START ANOTHER</button>
+      <div class="sushi-clock">BACK TO THE LOBBY IN ${Math.ceil(ph.resultLeft/1000)}s</div>`;
     return;
   }
 
-  const called = sushiCalled(ph.rid, ph.step);
-  const lay = sushiLayout(ph.rid, ph.step);
+  // ph.mode === "play"
+  const called = sushiCalled(SUSHI.seed, ph.step);
   const L = SUSHI_LEVELS[ph.lv];
-  const pct = Math.round(100 * (ph.stepLeft / ph.stepMs));
   const up = SUSHI.lv !== -1 && ph.lv > SUSHI.lv;      // climbed a level just now
+  const lvLine = `<div class="sushi-lvl${up?" up":""}">${up?"LEVEL UP! ":""}LV ${ph.lv+1}/${SUSHI_LEVELS.length} · ${L.nm} · ${(L.ms/1000).toFixed(1)}s A CALL${L.shuffle?" · BOXES MOVING":""}</div>`;
+
+  if(SUSHI.spectating){
+    stage.innerHTML = `
+      <div class="sushi-ticket">
+        <div class="lbl">ORDER UP — ADD</div>
+        <div class="big">${called.e}</div>
+        <div class="nm">${called.n}</div>
+      </div>
+      ${lvLine}
+      <div class="sushi-watch">WATCHING — YOU'RE IN THE NEXT ROUND</div>
+      <div class="sushi-clock">${Math.ceil(ph.playLeft/1000)}s LEFT · CALL ${ph.step+1}/${SUSHI_STEPS}</div>`;
+    SUSHI.lv = ph.lv;
+    return;
+  }
+
+  const lay = sushiLayout(SUSHI.seed, ph.step);
+  const pct = Math.round(100 * (ph.stepLeft / ph.stepMs));
   stage.innerHTML = `
     <div class="sushi-ticket">
       <div class="lbl">ORDER UP — ADD</div>
@@ -428,7 +649,7 @@ function sushiRenderStage(){
       <div class="nm">${called.n}</div>
       <div class="sushi-bar"><i style="width:${pct}%"></i></div>
     </div>
-    <div class="sushi-lvl${up?" up":""}">${up?"LEVEL UP! ":""}LV ${ph.lv+1}/${SUSHI_LEVELS.length} · ${L.nm} · ${(L.ms/1000).toFixed(1)}s A CALL${L.shuffle?" · BOXES MOVING":""}</div>
+    ${lvLine}
     <div class="sushi-grid" id="sushiGrid">
       ${lay.map((g,i)=>`<button type="button" class="sushi-btn" data-k="${g.k}" title="${esc(g.n)}">${g.e}<span style="display:none">${i+1}</span></button>`).join("")}
     </div>
@@ -454,7 +675,8 @@ function sushiPaintGrid(){
   const grid = SUSHI.root && SUSHI.root.querySelector("#sushiGrid");
   if(!grid) return;
   const ph = sushiPhase();
-  const called = sushiCalled(ph.rid, ph.step);
+  if(ph.mode !== "play" || SUSHI.spectating) return;
+  const called = sushiCalled(SUSHI.seed, ph.step);
   [...grid.children].forEach(b=>{
     b.classList.remove("hit","miss");
     b.disabled = SUSHI.tapped;
@@ -465,7 +687,17 @@ function sushiPaintGrid(){
 function sushiRenderMat(){
   const card = SUSHI.root && SUSHI.root.querySelector("#sushiMatCard");
   if(!card) return;
-  const room = SUSHI.board.length && !sushiPhase().playing ? SUSHI.board : sushiRoom();
+  const ph = sushiPhase();
+  if(ph.mode === "lobby" || ph.mode === "count"){
+    let mat = "";
+    for(let i=0;i<SUSHI_PIECES;i++) mat += `<span>🍣</span>`;
+    const room = sushiPresent();
+    card.innerHTML = `
+      <div class="sushi-mat">${mat}</div>
+      <div class="sushi-roomline"><span>${room.length} in the lobby</span><span>The mat fills once the round starts</span></div>`;
+    return;
+  }
+  const room = (SUSHI.board.length && ph.mode !== "play") ? SUSHI.board : sushiPlayers();
   const total = room.reduce((s,p)=>s+p.score, 0);
   const goal = sushiGoal(room.length);
   const filled = Math.min(SUSHI_PIECES, Math.floor(SUSHI_PIECES * total / goal));
@@ -481,7 +713,20 @@ function sushiRenderMat(){
 function sushiRenderBoard(){
   const el = SUSHI.root && SUSHI.root.querySelector("#sushiBoard");
   if(!el) return;
-  const room = SUSHI.board.length && !sushiPhase().playing ? SUSHI.board : sushiRoom();
+  const ph = sushiPhase();
+  if(ph.mode === "lobby" || ph.mode === "count"){
+    const room = sushiPresent();
+    let h = `<h5>IN THE LOBBY (${room.length})</h5>`;
+    if(room.length === 1 && sushiRT.status() !== "live"){
+      h += '<div class="sushi-empty">Nobody else here yet. Colleagues appear as they open this tab.</div>';
+    }
+    room.slice(0,30).forEach(p=>{
+      h += `<div class="sushi-row ${p.mine?"me":""}"><span class="nm">${esc(p.name)}${p.mine?" (you)":""}</span></div>`;
+    });
+    el.innerHTML = h;
+    return;
+  }
+  const room = (SUSHI.board.length && ph.mode !== "play") ? SUSHI.board : sushiPlayers();
   let h = "<h5>THE KITCHEN</h5>";
   if(room.length === 1 && sushiRT.status() !== "live"){
     h += '<div class="sushi-empty">Nobody else here yet. Scores appear as colleagues open this tab.</div>';
@@ -504,9 +749,17 @@ function sushiRenderAll(){
 /* =========================================================
    PLAY
    ========================================================= */
+function sushiClick(e){
+  // The stage re-renders about once a second, so a handler bound directly to
+  // the button would be swapped out from under the user's thumb. One
+  // delegated listener on SUSHI.root survives every re-render.
+  const b = e.target.closest && e.target.closest("#sushiStart");
+  if(b) sushiStart();
+}
+
 function sushiTap(k){
   const ph = sushiPhase();
-  if(!ph.playing || SUSHI.tapped) return;
+  if(ph.mode !== "play" || SUSHI.spectating || SUSHI.tapped) return;
   // The stage only repaints when sushiLoop notices the step changed, so for up
   // to SUSHI_UI_MS after a boundary the grid on screen still belongs to the
   // previous call — and from RUSH on, to a layout that has since been re-dealt.
@@ -516,7 +769,7 @@ function sushiTap(k){
   // call that is painted, so anything else is stale and simply does not count;
   // the combo for the call they were too slow on is already broken by sushiLoop.
   if(ph.step !== SUSHI.step) return;
-  const called = sushiCalled(ph.rid, ph.step);
+  const called = sushiCalled(SUSHI.seed, ph.step);
   if(!called) return;
   SUSHI.tapped = true;
   if(k === called.k){
@@ -534,61 +787,48 @@ function sushiTap(k){
   sushiRenderBoard();
 }
 
-function sushiEnterRound(rid){
-  SUSHI.rid = rid;
-  SUSHI.score = 0; SUSHI.combo = 0; SUSHI.step = -1; SUSHI.lv = -1;
-  SUSHI.tapped = false; SUSHI.lastWrong = false;
-  SUSHI.board = []; SUSHI.complete = false;
-  SUSHI.room = {};                 // last round's scores are meaningless now
-  for(const k in sushiLay) delete sushiLay[k];   // and so are its box positions
-  sushiPush(true);
-}
-function sushiEndRound(){
-  SUSHI.board = sushiRoom();       // freeze the result for the intermission
-  if(SUSHI.score > SUSHI.best){ SUSHI.best = SUSHI.score; sushiSetBest(SUSHI.best); }
-}
-
 function sushiLoop(){
   if(!SUSHI.root) return;
+  sushiPrune();
   const ph = sushiPhase();
 
-  if(ph.rid !== SUSHI.rid){
-    if(SUSHI.rid !== -1) sushiEndRound();
-    const keepBoard = SUSHI.board;
-    sushiEnterRound(ph.rid);
-    SUSHI.board = keepBoard;       // still shown until the new round starts playing
-  }
-  if(ph.playing){
+  if(ph.mode === "over"){ sushiEndRound(); sushiToLobby(); sushiRenderAll(); return; }
+
+  if(ph.mode === "play"){
     if(SUSHI.board.length) SUSHI.board = [];
-    if(ph.step !== SUSHI.step){    // new ingredient called
-      // letting a step go by without tapping breaks the combo, same as a miss
+    if(ph.step !== SUSHI.step){        // a new ingredient was called
+      // letting a call go by without tapping breaks the combo, same as a miss
       if(SUSHI.step !== -1 && !SUSHI.tapped && SUSHI.combo){ SUSHI.combo = 0; SUSHI.dirty = true; }
       SUSHI.step = ph.step;
       SUSHI.tapped = false; SUSHI.lastWrong = false;
       sushiRenderStage();
     }
-  }else if(SUSHI.step !== -1){     // play just ended
+  }else if(SUSHI.step !== -1){         // play just ended
     SUSHI.step = -1;
     sushiEndRound();
   }
 
+  if(ph.mode !== SUSHI.mode){ SUSHI.mode = ph.mode; SUSHI.lastSec = -1; sushiRenderAll(); }
+
   sushiPush(false);
   sushiRenderConn();
-  if(ph.playing){
-    const bar = SUSHI.root.querySelector(".sushi-bar i");
-    if(bar) bar.style.width = Math.round(100 * (ph.stepLeft / ph.stepMs)) + "%";
+
+  if(ph.mode === "play"){
+    if(!SUSHI.spectating){
+      const bar = SUSHI.root.querySelector(".sushi-bar i");
+      if(bar) bar.style.width = Math.round(100 * (ph.stepLeft / ph.stepMs)) + "%";
+    }
     const clock = SUSHI.root.querySelector(".sushi-clock");
     if(clock) clock.textContent = Math.ceil(ph.playLeft/1000) + "s LEFT · CALL " + (ph.step+1) + "/" + SUSHI_STEPS;
     sushiRenderMat();
     sushiRenderBoard();
   }else{
-    // intermission: repaint once a second, not five times, so it doesn't flicker
-    const sec = Math.ceil(ph.nextIn/1000);
+    // lobby / countdown / results: repaint once a second, not five times a second,
+    // so the card doesn't flicker
+    const sec = Math.floor(Date.now()/1000);
     if(sec !== SUSHI.lastSec){
       SUSHI.lastSec = sec;
-      sushiRenderStage();
-      sushiRenderMat();
-      sushiRenderBoard();
+      sushiRenderStage(); sushiRenderMat(); sushiRenderBoard();
     }
   }
 }
@@ -598,8 +838,8 @@ function sushiKey(e){
   const n = "123456789".indexOf(e.key);
   if(n < 0) return;
   const ph = sushiPhase();
-  if(!ph.playing) return;
-  const lay = sushiLayout(ph.rid, ph.step);   // 1-9 read off the grid as shown
+  if(ph.mode !== "play" || SUSHI.spectating) return;
+  const lay = sushiLayout(SUSHI.seed, ph.step);   // 1-9 read off the grid as shown
   if(lay[n]) sushiTap(lay[n].k);
 }
 
@@ -609,14 +849,32 @@ function sushiKey(e){
 function initSushi(){
   SUSHI.root = document.getElementById("gamePage");
   SUSHI.best = sushiGetBest();
-  SUSHI.rid = -1; SUSHI.step = -1; SUSHI.lv = -1;
-  SUSHI.room = {}; SUSHI.board = []; SUSHI.complete = false;
-  SUSHI.score = 0; SUSHI.combo = 0; SUSHI.sentAt = 0; SUSHI.dirty = true; SUSHI.lastSec = -1;
+  // A round we were already in survives a tab switch: closing the overlay is one
+  // keystroke, and forfeiting a score plus being demoted to spectator for the rest
+  // of a 60s round is far too harsh a price for glancing at the map. Anything
+  // finished, or from a previous session, resets to the lobby as before.
+  const resume = SUSHI.startAt && (Date.now() - SUSHI.startAt) < SUSHI_PLAY_MS + SUSHI_RESULT_MS;
+  if(resume){
+    SUSHI.seed = sushiSeed(SUSHI.startAt);
+  }else{
+    SUSHI.startAt = 0; SUSHI.seed = 0; SUSHI.lastEnded = 0;
+    SUSHI.spectating = false; SUSHI.ended = false; SUSHI.lastResult = null;
+    SUSHI.score = 0; SUSHI.combo = 0;
+    SUSHI.board = []; SUSHI.complete = false;
+    for(const k in sushiLay) delete sushiLay[k];
+  }
+  SUSHI.mode = ""; SUSHI.step = -1; SUSHI.lv = -1;
+  SUSHI.room = {};
+  SUSHI.sentAt = 0; SUSHI.dirty = true; SUSHI.lastSec = -1;
   sushiRT.open(sushiOnMsg);
+  SUSHI.root.addEventListener("click", sushiClick);
   sushiRenderAll();
   sushiLoop();
   SUSHI.uiTimer = setInterval(sushiLoop, SUSHI_UI_MS);
   document.addEventListener("keydown", sushiKey);
+  // A round not resumed lands in the lobby; one already under way but not ours
+  // is adopted from the next state ping (within SUSHI_KEEP_MS) — and because it
+  // is already under way, sushiEnterRound will mark that adoption a spectator.
 }
 
 function tickSushi(){
@@ -632,7 +890,13 @@ function tickSushi(){
 function stopSushi(){
   if(SUSHI.uiTimer){ clearInterval(SUSHI.uiTimer); SUSHI.uiTimer = null; }
   document.removeEventListener("keydown", sushiKey);
+  if(SUSHI.root) SUSHI.root.removeEventListener("click", sushiClick);
   sushiRT.close();
   SUSHI.root = null;
   SUSHI.room = {};
+  // The round itself is deliberately NOT cleared here: closing the overlay is one
+  // keystroke (Escape, the backdrop, or switching to another game tab), and a
+  // round already in progress should survive a quick look at the map rather than
+  // costing the player their score and a demotion to spectator on the way back in.
+  // initSushi() decides whether what's left is still worth resuming.
 }
