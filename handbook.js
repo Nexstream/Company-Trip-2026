@@ -116,20 +116,8 @@ function renderStay(){ return `
 <p>James · Zack · Chai Mun · Diviya — reach out with questions before or during the trip. Save their numbers before you fly.</p>
 <div class="warn">Passport must be valid for at least 6 months from the return date. Group travel insurance is arranged for everyone; keep a copy on your phone.</div>`; }
 
-function renderPack(){ return `
-<h4>Pack list</h4>
-<ul class="art-pack">
-<li>${art('passport',26)}<span>Passport (6+ months validity), insurance copy, flight and hotel confirmations</span></li>
-<li>${art('backpack',26)}<span>Breathable layers plus a light jacket or cardigan for cool evenings and A/C coaches</span></li>
-<li>${art('shoes',26)}<span>Well broken-in walking shoes; slip-ons are handy for temples and the onsen town</span></li>
-<li>${art('umbrella',26)}<span>Compact umbrella or light raincoat, sunscreen, hat</span></li>
-<li>${art('plug',26)}<span>Type A power adapter, power bank, cables</span></li>
-<li>${art('iccard',26)}<span>Small notes and coins pouch; IC card if you have one from a previous trip</span></li>
-<li>${art('bottle',26)}<span>Reusable water bottle, personal medication, a small rubbish bag</span></li>
-<li>${art('shopbag',26)}<span>Spare space in your luggage for konbini snacks and Donki hauls</span></li>
-</ul>
-<h4>Night before</h4>
-<ul>
-<li>Be at the office with luggage before 10:00 PM on 28 Sep. The chartered transport leaves on time.</li>
-<li>Charge everything, install your eSIM, and download offline maps for Kyoto, Kobe, Nara and Osaka.</li>
-</ul>`; }
+function renderPack(){
+  /* the pack list is a personal checklist; checklist.js owns its markup + ticks */
+  if(typeof ckPackHtml==='function') return ckPackHtml();
+  return `<h4>Pack list</h4><p>Checklist is still loading — reopen this tab in a moment.</p>`;
+}
