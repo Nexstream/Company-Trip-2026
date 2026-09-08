@@ -26,9 +26,9 @@
   .frame{background:var(--navy); border:4px solid var(--gold); box-shadow:0 0 0 4px var(--navy2),0 0 0 8px var(--gold2)}
 
   /* title */
-  #title{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px;
+  #title{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; overflow-y:auto; z-index:1000; padding:16px;
     background:repeating-linear-gradient(0deg,transparent 0 14px,rgba(255,255,255,.02) 14px 16px),var(--navy2)}
-  #title .card{width:min(560px,100%); padding:28px 24px}
+  #title .card{width:min(560px,100%); padding:28px 24px; margin:auto}
   #title h1{font-size:20px; line-height:1.6; color:var(--gold); margin-bottom:6px}
   #title .sub{color:#b9c3d6; margin-bottom:22px}
   .field{margin-bottom:18px}
@@ -78,12 +78,18 @@
 
   /* right side buttons */
   /* Capped off the measured chrome vars so the rail can never grow into #hud and
-     swallow taps. overflow-y makes this a scroll container, which clips descendants
-     to the padding box even when nothing scrolls - so the rail is offset by the
-     chat badge's 7px overhang (and the buttons' 3px shadow) and reclaims it as
-     padding, leaving the buttons visually at 10px from the edge. */
-  #sidebtns{position:absolute; right:3px; bottom:calc(var(--trayh,140px) + 7px); padding:0 7px 3px 0; z-index:500; display:flex; flex-direction:column; gap:8px;
-    max-height:calc(100vh - var(--hudh,60px) - var(--trayh,140px) - 24px); overflow-y:auto; scrollbar-width:none}
+     swallow taps. It wraps into extra columns (leftwards, via wrap-reverse) rather
+     than scrolling, because a hidden scrollbar on a 7-button rail left EXIT and the
+     outfit button clipped with no affordance in landscape. dvh, not vh: on mobile
+     Safari 100vh is the LARGE viewport, so vh under-constrains the very case this
+     cap exists for. overflow-y is the last-resort backstop, and it makes this a
+     scroll container - which clips descendants to the padding box even when nothing
+     scrolls - so the rail is offset by the chat badge's 7px overhang (and the
+     buttons' 3px shadow) and reclaims it as padding, keeping the buttons visually
+     10px from the edge. */
+  #sidebtns{position:absolute; right:3px; bottom:calc(var(--trayh,140px) + 7px); padding:0 7px 3px 0; z-index:500; display:flex; flex-direction:column; flex-wrap:wrap-reverse; align-content:flex-end; gap:8px;
+    max-height:calc(100vh - var(--hudh,60px) - var(--trayh,140px) - 24px);
+    max-height:calc(100dvh - var(--hudh,60px) - var(--trayh,140px) - 24px); overflow-y:auto; scrollbar-width:none}
   #sidebtns::-webkit-scrollbar{display:none}
   #sidebtns .rb{position:relative; width:48px; height:48px; background:var(--navy); border:3px solid var(--gold); color:var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Press Start 2P',monospace; font-size:9px; box-shadow:3px 3px 0 rgba(0,0,0,.5)}
   #sidebtns .rb.on{background:var(--red); color:#fff}
@@ -493,15 +499,38 @@ const DAYS = [
 /* =========================================================
    PIXEL SPRITES
    ========================================================= */
-// av is one int, 0-63: av = hair*8 + cloth (avCode/avHair/avCloth below). Legacy av
-// values 0-7 (written before this two-axis split) all decode to hair 0 with varying
-// clothes — accepted cosmetic drift, not worth a data migration.
+// av is one int: av = ((build*AV_BUILD_SLOTS_UNUSED)+acc)*AV_CC + hair*8 + cloth.
+// The slot counts are FROZEN constants, deliberately not AV_ACC.length/AV_BODY.length:
+// they are positional weights in stored data, so deriving them from array length would
+// silently remap every av already in the DB the day a 6th accessory is added.
+// Legacy av 0-63 (written before build/accessory existed) decode to build 0 (the
+// original CHAR sprite) and acc 0 ("None"), so this split adds no drift of its own.
+// Their hair does still shift, but that is the earlier hair/cloth split's accepted
+// tradeoff, not this one's: the old picker wrote 0-7 as paired hair+shirt presets.
 const AV_HAIR  = ["#2b1d12","#f2c14e","#7a3b1e","#111111","#d94f8a","#9b59b6","#4b86c4","#e0e0e0"];
 const AV_CLOTH = ["#c8442b","#3f6f9c","#5ad36a","#c9a24a","#ffffff","#ff9f43","#e74c3c","#2c3e50"];
+const AV_CC = AV_HAIR.length * AV_CLOTH.length;   // 64 colour combos per look
+const AV_ACC_SLOTS = 8, AV_BUILD_SLOTS = 8;       // frozen: see the note above
 function avHair(av){ return Math.floor((+av||0)/AV_CLOTH.length) % AV_HAIR.length; }
 function avCloth(av){ return (+av||0) % AV_CLOTH.length; }
-function avCode(h,c){ return h*AV_CLOTH.length + c; }
+function avAcc(av){ return Math.floor((+av||0)/AV_CC) % AV_ACC_SLOTS; }
+function avBuild(av){ return Math.floor((+av||0)/(AV_CC*AV_ACC_SLOTS)) % AV_BUILD_SLOTS; }
+function avCode(h,c,a,b){ return ((b*AV_ACC_SLOTS)+a)*AV_CC + h*AV_CLOTH.length + c; }
 const CHAR = ["..HHHH..",".HHHHHH.",".HSSSSH.",".SESSES.","..SSSS..",".CCCCCC.","CCCCCCCC",".LL..LL."];
+// Body 0 is the original sprite and must stay byte-identical - legacy av values
+// decode to it. Body 1 differs in silhouette: hair down past the jaw (rows 2-4),
+// a narrower waist flaring into a skirt (rows 5-6) and slimmer legs. Both are 8
+// rows with the head on rows 0-4, so one accessory overlay fits either.
+const AV_BODY = [CHAR, ["..HHHH..",".HHHHHH.","HHSSSSHH","HSESSESH","H.SSSS.H","..CCCC..","CCCCCCCC","..L..L.."]];
+// 8-row accessory overlays; '.' is transparent, A/B are the two accessory-only palette
+// letters. drawSprite already skips '.', so an overlay just needs merging onto a body.
+const AV_ACC = [
+  {n:"None",    rows:null},
+  {n:"Specs",   a:"#1b2a44", rows:["........","........","........",".A.AA.A.","........","........","........","........"]},
+  {n:"Cap",     a:"#c8442b", rows:["..AAAA..","AAAAAAAA","........","........","........","........","........","........"]},
+  {n:"Mask",    a:"#f3e8cf", rows:["........","........","........","........","..AAAA..","........","........","........"]},
+  {n:"Headband",a:"#f3e8cf", b:"#c8442b", rows:["........","........",".AABBAA.","........","........","........","........","........"]},
+];
 const ICONS = {
   torii:  ["RRRRRRRR",".R.RR.R.","..R..R..",".RRRRRR.","..R..R..","..R..R..","..R..R..","..R..R.."],
   temple: ["...K....","..KKKK..",".KKKKKK.","KKKKKKKK","..R..R..",".R.RR.R.","..R..R..","KKKKKKKK"],
@@ -525,7 +554,15 @@ function drawSprite(ctx, rows, pal, x, y, s){
     const ch=rows[r][c]; if(ch==='.') continue; ctx.fillStyle=pal[ch]||"#000"; ctx.fillRect(x+c*s,y+r*s,s,s);
   }
 }
-function charPal(av){ return {H:AV_HAIR[avHair(av)],S:"#f1c9a5",E:"#1b2a44",C:AV_CLOTH[avCloth(av)],L:"#2a2418"}; }
+function charPal(av){ const acc=AV_ACC[avAcc(av)]||AV_ACC[0]; return {H:AV_HAIR[avHair(av)],S:"#f1c9a5",E:"#1b2a44",C:AV_CLOTH[avCloth(av)],L:"#2a2418",A:acc.a||"#1b2a44",B:acc.b||acc.a||"#1b2a44"}; }
+const AV_ROWS_CACHE={};   // memoised per av int — 5s game ticks re-render constantly
+function charRows(av){
+  av=+av||0; const hit=AV_ROWS_CACHE[av]; if(hit) return hit;
+  const body=AV_BODY[avBuild(av)]||AV_BODY[0], acc=AV_ACC[avAcc(av)]||AV_ACC[0];
+  const rows=acc.rows ? body.map((row,r)=>{ const o=acc.rows[r]; if(!o) return row;
+    let out=""; for(let i=0;i<row.length;i++) out+=(o[i]&&o[i]!=='.')?o[i]:row[i]; return out; }) : body.slice();
+  AV_ROWS_CACHE[av]=rows; return rows;
+}
 function spriteURL(rows,pal){ const c=document.createElement('canvas'); c.width=c.height=8; drawSprite(c.getContext('2d'),rows,pal,0,0,1); return c.toDataURL(); }
 const ICON_URL={}; for(const k in ICONS) ICON_URL[k]=spriteURL(ICONS[k],ICON_PAL);
 
@@ -546,34 +583,32 @@ let players={}, markers={}, watchId=null, selectedAv=0, follow=true, map, accCir
 /* =========================================================
    TITLE
    ========================================================= */
-// Shared two-row (hair/clothes) avatar picker, used by the title screen and the
-// in-game OUTFIT panel. Each button shows the full CHAR sprite so no separate
-// preview widget is needed. root is cleared first, so this is safely re-entrant.
+// Shared four-row (build/hair/clothes/extra) avatar picker, used by the title screen
+// and the in-game OUTFIT panel. Each button shows the whole charRows() sprite with
+// only that axis varied, so no separate preview widget is needed. root is cleared
+// first, so this is safely re-entrant.
+const AV_AXES = [
+  {label:'BUILD',   count:()=>AV_BODY.length, cur:avBuild, code:(av,i)=>avCode(avHair(av),avCloth(av),avAcc(av),i), title:i=>"Build "+(i+1)},
+  {label:'HAIR',    count:()=>AV_HAIR.length,  cur:avHair,  code:(av,i)=>avCode(i,avCloth(av),avAcc(av),avBuild(av)), title:i=>"Hair "+(i+1)},
+  {label:'CLOTHES', count:()=>AV_CLOTH.length, cur:avCloth, code:(av,i)=>avCode(avHair(av),i,avAcc(av),avBuild(av)), title:i=>"Clothes "+(i+1)},
+  {label:'EXTRA',   count:()=>AV_ACC.length,   cur:avAcc,   code:(av,i)=>avCode(avHair(av),avCloth(av),i,avBuild(av)), title:i=>AV_ACC[i].n},
+];
 function buildAvPicker(root, av, onPick){
   root.innerHTML="";
-  const rowHair=document.createElement('div'), rowCloth=document.createElement('div');
-  const lblHair=document.createElement('div'), lblCloth=document.createElement('div');
-  lblHair.className=lblCloth.className='avrow-h'; lblHair.textContent='HAIR'; lblCloth.textContent='CLOTHES';
-  const gridHair=document.createElement('div'), gridCloth=document.createElement('div');
-  gridHair.className=gridCloth.className='avatars';
-  AV_HAIR.forEach((_,i)=>{
-    const code=avCode(i,avCloth(av));
-    const b=document.createElement('button'); b.type="button"; b.title="Hair "+(i+1);
-    const c=document.createElement('canvas'); c.width=32;c.height=32; drawSprite(c.getContext('2d'),CHAR,charPal(code),0,0,4);
-    b.appendChild(c); if(i===avHair(av)) b.classList.add('on');
-    b.onclick=()=>onPick(code);
-    gridHair.appendChild(b);
+  AV_AXES.forEach(ax=>{
+    const row=document.createElement('div'), lbl=document.createElement('div'), grid=document.createElement('div');
+    lbl.className='avrow-h'; lbl.textContent=ax.label; grid.className='avatars';
+    const cur=ax.cur(av);
+    for(let i=0;i<ax.count();i++){
+      const code=ax.code(av,i);
+      const b=document.createElement('button'); b.type="button"; b.title=ax.title(i);
+      const c=document.createElement('canvas'); c.width=32;c.height=32; drawSprite(c.getContext('2d'),charRows(code),charPal(code),0,0,4);
+      b.appendChild(c); if(i===cur) b.classList.add('on');
+      b.onclick=()=>onPick(code);
+      grid.appendChild(b);
+    }
+    row.append(lbl,grid); root.appendChild(row);
   });
-  AV_CLOTH.forEach((_,i)=>{
-    const code=avCode(avHair(av),i);
-    const b=document.createElement('button'); b.type="button"; b.title="Clothes "+(i+1);
-    const c=document.createElement('canvas'); c.width=32;c.height=32; drawSprite(c.getContext('2d'),CHAR,charPal(code),0,0,4);
-    b.appendChild(c); if(i===avCloth(av)) b.classList.add('on');
-    b.onclick=()=>onPick(code);
-    gridCloth.appendChild(b);
-  });
-  rowHair.append(lblHair,gridHair); rowCloth.append(lblCloth,gridCloth);
-  root.append(rowHair,rowCloth);
 }
 const avWrap=document.getElementById('avatars');
 function buildTitlePicker(){ buildAvPicker(avWrap, selectedAv, av=>{ selectedAv=av; buildTitlePicker(); }); }
@@ -673,7 +708,7 @@ function playerIcon(p){
   const stale=Date.now()-p.ts>5*60*1000;
   return L.divIcon({className:'', html:`<div class="pm ${p.id===me.id?'me':''} ${stale?'stale':''}">${p.id===me.id?'<div class="spark"></div>':''}<canvas width="8" height="8" data-av="${p.av||0}"></canvas>${p.emoji?`<div class="em">${esc(p.emoji)}</div>`:''}<div class="lbl">${esc((p.name||'?').slice(0,10))}</div></div>`, iconSize:[32,44], iconAnchor:[16,32], popupAnchor:[0,-30]});
 }
-function paintCanvases(){ document.querySelectorAll('.pm canvas[data-av]').forEach(c=>{ if(c.dataset.done) return; drawSprite(c.getContext('2d'),CHAR,charPal(+c.dataset.av),0,0,1); c.dataset.done=1; }); }
+function paintCanvases(){ document.querySelectorAll('.pm canvas[data-av]').forEach(c=>{ if(c.dataset.done) return; drawSprite(c.getContext('2d'),charRows(+c.dataset.av),charPal(+c.dataset.av),0,0,1); c.dataset.done=1; }); }
 function renderMarkers(){
   const now=Date.now(); const live=new Set();
   Object.values(players).forEach(p=>{
@@ -760,9 +795,13 @@ function toggleEmojiPanel(){ closeOutfitPanel(); const p=document.getElementById
 function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); document.getElementById('emojiBtn').classList.remove('on'); }
 
 /* =========================================================
-   OUTFIT: change hair/clothes after joining
+   OUTFIT: change build/hair/clothes/extra after joining
    ========================================================= */
 function buildOutfitPanel(){
+  // The picker rebuilds on every pick, which empties #outfitGrid and so clamps the
+  // scrolling panel's scrollTop to 0 - without this a tap on CLOTHES or EXTRA would
+  // bounce the user back up to BUILD.
+  const panel=document.getElementById('outfitPanel'), keep=panel?panel.scrollTop:0;
   buildAvPicker(document.getElementById('outfitGrid'), me.av, av=>{
     me.av=av; saveMe();
     // Instant local feedback: pushMe() only syncs players[] after its await, and
@@ -771,6 +810,7 @@ function buildOutfitPanel(){
     if(players[me.id]) players[me.id]={...players[me.id],av:me.av};
     pushMe(); renderAll(); buildOutfitPanel();
   });
+  if(panel) panel.scrollTop=keep;
 }
 function toggleOutfitPanel(){
   closeEmojiPanel(); if(typeof chatSetOpen==='function') chatSetOpen(false);
@@ -848,7 +888,7 @@ function renderTray(){
   list.forEach(p=>{
     const echo=trayEchoHtml(p.id);
     const d=document.createElement('div'); d.className='card2'+(p.id===me.id?' me':'')+(echo?' echoing':'');
-    const c=document.createElement('canvas'); c.width=c.height=8; drawSprite(c.getContext('2d'),CHAR,charPal(p.av||0),0,0,1);
+    const c=document.createElement('canvas'); c.width=c.height=8; drawSprite(c.getContext('2d'),charRows(p.av||0),charPal(p.av||0),0,0,1);
     const ago=Math.round((now-p.ts)/60000);
     const dist=(p.id!==me.id&&me.lat!=null)?`<b>${fmtKm(haversine(me.lat,me.lng,p.lat,p.lng))}</b> away`:"you";
     const av=document.createElement('div'); av.className='av'; av.appendChild(c); if(p.emoji) av.insertAdjacentHTML('beforeend',`<div class="em2">${esc(p.emoji)}</div>`);
@@ -989,14 +1029,14 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      keep serving a stale module after index.html has updated, which looks exactly
      like "the new feature didn't ship". Bump it on every deploy that changes a
      module. -->
-<script src="art.js?v=20260908e"></script>
-<script src="checklist.js?v=20260908e"></script>
-<script src="handbook.js?v=20260908e"></script>
-<script src="game-hunt.js?v=20260908e"></script>
-<script src="game-race.js?v=20260908f"></script>
-<script src="game-trivia.js?v=20260908e"></script>
-<script src="game-arcade.js?v=20260908e"></script>
-<script src="game-sushi.js?v=20260908f"></script>
-<script src="chat.js?v=20260908e"></script>
+<script src="art.js?v=20260908g"></script>
+<script src="checklist.js?v=20260908g"></script>
+<script src="handbook.js?v=20260908g"></script>
+<script src="game-hunt.js?v=20260908g"></script>
+<script src="game-race.js?v=20260908g"></script>
+<script src="game-trivia.js?v=20260908g"></script>
+<script src="game-arcade.js?v=20260908g"></script>
+<script src="game-sushi.js?v=20260908g"></script>
+<script src="chat.js?v=20260908g"></script>
 </body>
 </html>

@@ -156,7 +156,7 @@ function huntWhereAmI(){
 }
 
 function huntAvatarImg(av){
-  try{ return spriteURL(CHAR, charPal(av||0)); }catch(e){ return ""; }
+  try{ return spriteURL(charRows(av||0), charPal(av||0)); }catch(e){ return ""; }
 }
 
 function huntRenderLeaderboard(){
