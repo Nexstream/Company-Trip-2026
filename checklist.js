@@ -2,8 +2,15 @@
    PACK CHECKLIST — personal ticks, synced to your player id
    Rows live in quest_claims with kind='pack'; only your own
    rows are ever fetched, so nobody sees your packing progress
-   in the UI. Ticking is optimistic and rolls back if the write
-   fails, and the list stays usable with no network at all.
+   in the UI.
+
+   Ticking never blocks on the network. A tick goes into ckDone
+   straight away, is mirrored to localStorage so it survives a
+   reload, and is queued in ckPending until the server confirms
+   it. Failed writes stay queued and are retried the next time
+   the Pack tab is opened, so the list is fully usable offline —
+   an earlier version rolled the tick back on failure while the
+   banner claimed it had been kept locally.
    ========================================================= */
 const CK_ITEMS = [
   {id:'passport',  art:'passport', t:'Passport (6+ months validity), insurance copy, flight and hotel confirmations'},
@@ -21,17 +28,45 @@ const CK_NIGHT = [
 ];
 const CK_ALL = CK_ITEMS.concat(CK_NIGHT);
 
+const CK_CACHE_KEY = 'kansai-quest-pack';
+
 let ckDone = new Set();      // item ids this player has ticked
+let ckPending = new Map();   // id -> desired state the server has not confirmed yet
 let ckLoaded = false;        // have we ever successfully read from the server
-let ckOffline = false;       // last write or read failed
+let ckOffline = false;       // a read failed, or ticks are still waiting to sync
 let ckBusy = new Set();      // ids with a write in flight
+let ckFlushing = false;      // a retry pass is already running
+
+/* ---------- device cache ---------- */
+/* Keyed to the player id so a cleared/rejoined identity does not inherit
+   someone else's ticks from the same browser. */
+function ckLoadCache(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(CK_CACHE_KEY) || 'null');
+    if(!raw || raw.id !== me.id) return;
+    if(Array.isArray(raw.done))    ckDone    = new Set(raw.done);
+    if(Array.isArray(raw.pending)) ckPending = new Map(raw.pending);
+    ckOffline = ckPending.size > 0;
+  }catch(e){ /* corrupt or unavailable storage — start from an empty list */ }
+}
+function ckSaveCache(){
+  try{
+    localStorage.setItem(CK_CACHE_KEY, JSON.stringify(
+      {id:me.id, done:[...ckDone], pending:[...ckPending]}));
+  }catch(e){ /* private mode / quota — ticks still work for this session */ }
+}
+ckLoadCache();
 
 /* ---------- server ---------- */
 async function ckFetch(){
   try{
     const rows = await sb("quest_claims?select=target&kind=eq.pack&player_id=eq."+encodeURIComponent(me.id));
-    ckDone = new Set((rows||[]).map(r=>r.target));
-    ckLoaded = true; ckOffline = false;
+    const server = new Set((rows||[]).map(r=>r.target));
+    // Ticks we have not managed to push yet win over the server's older view.
+    for(const [id,on] of ckPending){ if(on) server.add(id); else server.delete(id); }
+    ckDone = server;
+    ckLoaded = true; ckOffline = ckPending.size > 0;
+    ckSaveCache();
   }catch(e){ console.warn('checklist load', e); ckOffline = true; }
 }
 async function ckWrite(id, on){
@@ -43,6 +78,21 @@ async function ckWrite(id, on){
   } else {
     await sb("quest_claims?kind=eq.pack&player_id=eq."+encodeURIComponent(me.id)+
              "&target=eq."+encodeURIComponent(id), {method:"DELETE", headers:{Prefer:"return=minimal"}});
+  }
+}
+/* Retry everything still queued. Stops at the first failure so we do not
+   hammer a dead connection; the rest stays queued for the next attempt. */
+async function ckFlush(){
+  if(ckFlushing || !ckPending.size) return;
+  ckFlushing = true;
+  try{
+    for(const [id,on] of [...ckPending]){
+      try{ await ckWrite(id,on); ckPending.delete(id); }
+      catch(e){ console.warn('checklist retry', e); ckOffline = true; return; }
+    }
+    ckOffline = false;
+  } finally {
+    ckFlushing = false; ckSaveCache(); ckRepaint();
   }
 }
 
@@ -77,13 +127,16 @@ li.ck-row.ck-on .ck-txt{text-decoration:line-through;color:#8a7c5e}
 li.ck-row.ck-on .ck-box{background:var(--gold)}
 .ck-row img{flex:none;margin-top:1px}
 .ck-txt{flex:1;min-width:0}
-.ck-note{font-size:17px;color:#8a7c5e;margin:-8px 0 12px}
+.ck-note{font-size:17px;color:#8a7c5e;margin:-8px 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ck-err{color:var(--red)}
+.ck-retry{font-family:'Press Start 2P',monospace;font-size:7px;padding:6px 8px;background:var(--cream);color:var(--ink);border:2px solid var(--ink)}
 </style>`; }
 function ckPackHtml(){
   return ckStyles()
     + `<h4>Pack list</h4>` + ckProgress()
-    + `<div class="ck-note">${ckOffline ? '<span class="ck-err">Offline — ticks are showing locally but not saved yet.</span>'
+    + `<div class="ck-note">${ckOffline
+        ? `<span class="ck-err">Saved on this phone only — no connection. ${ckPending.size ? 'Ticks will sync on their own.' : ''}</span>
+           <button type="button" class="ck-retry">Retry now</button>`
         : 'Only you see these ticks. They follow your name across devices.'}</div>`
     + `<ul class="ck-list">${CK_ITEMS.map(ckRow).join('')}</ul>`
     + `<h4>Night before</h4>`
@@ -98,27 +151,30 @@ function ckRepaint(){
 }
 async function ckToggle(id){
   if(ckBusy.has(id)) return;
-  const wasOn = ckDone.has(id);
+  const on = !ckDone.has(id);
   ckBusy.add(id);
-  if(wasOn) ckDone.delete(id); else ckDone.add(id);   // optimistic
-  ckRepaint();
-  try{ await ckWrite(id, !wasOn); ckOffline=false; }
+  if(on) ckDone.add(id); else ckDone.delete(id);   // the tick lands immediately
+  ckPending.set(id, on); ckSaveCache(); ckRepaint();
+  try{ await ckWrite(id, on); ckPending.delete(id); ckOffline = ckPending.size > 0; }
   catch(e){
-    console.warn('checklist write', e);
-    if(wasOn) ckDone.add(id); else ckDone.delete(id); // roll back
-    ckOffline=true;
+    // Keep the tick — it is cached and stays queued for the next retry.
+    console.warn('checklist write', e); ckOffline = true;
   }
-  ckBusy.delete(id); ckRepaint();
+  ckBusy.delete(id); ckSaveCache(); ckRepaint();
 }
 async function ckResetAll(){
-  const ids=[...ckDone]; if(!ids.length) return;
-  ckDone=new Set(); ckRepaint();
+  if(!ckDone.size) return;
+  const ids=[...ckDone];
+  ckDone=new Set();
+  ids.forEach(id=>ckPending.set(id,false));
+  ckSaveCache(); ckRepaint();
   try{
     await sb("quest_claims?kind=eq.pack&player_id=eq."+encodeURIComponent(me.id),
              {method:"DELETE", headers:{Prefer:"return=minimal"}});
-    ckOffline=false;
-  }catch(e){ console.warn('checklist reset', e); ckDone=new Set(ids); ckOffline=true; }
-  ckRepaint();
+    // No pack rows left, so anything still queued is moot.
+    ckPending=new Map(); ckOffline=false;
+  }catch(e){ console.warn('checklist reset', e); ckOffline=true; }
+  ckSaveCache(); ckRepaint();
 }
 function ckWire(){
   const page=document.getElementById('page'); if(!page) return;
@@ -127,10 +183,17 @@ function ckWire(){
     li.onkeydown=e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); ckToggle(li.dataset.ck); } };
   });
   const r=page.querySelector('.ck-reset'); if(r) r.onclick=ckResetAll;
+  const t=page.querySelector('.ck-retry'); if(t) t.onclick=ckRetry;
+}
+async function ckRetry(){
+  if(!ckLoaded){ await ckFetch(); ckRepaint(); }
+  await ckFlush();
 }
 /* Called by renderBook after the Pack tab is painted. First open pulls the
-   saved ticks, then repaints once so the boxes come up already filled in. */
+   saved ticks, then repaints once so the boxes come up already filled in.
+   Every open is also a chance to push ticks made while offline. */
 function ckOnPackShown(){
   ckWire();
-  if(!ckLoaded) ckFetch().then(()=>ckRepaint());
+  if(!ckLoaded) ckFetch().then(()=>{ ckRepaint(); ckFlush(); });
+  else ckFlush();
 }

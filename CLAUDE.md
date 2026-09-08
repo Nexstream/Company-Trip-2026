@@ -76,3 +76,5 @@ Tables (see `supabase-setup.sql`):
 ## Identity and state
 
 There are no accounts. `me` is `{id, name, av, lat, lng, emoji, ...}` with a random `id` generated once and persisted to `localStorage` under `kansai-quest-me`; on reload, a saved name auto-rejoins via `startGame(true)`. Arcade personal bests are also localStorage-only. Everything else is keyed by that `player_id` server-side, so "your" ticks and claims follow the saved id across sessions but not across cleared storage.
+
+The pack checklist mirrors its state to `localStorage` under `kansai-quest-pack` as `{id, done[], pending[]}`, stamped with the `me.id` it belongs to and ignored if that no longer matches. A tick is applied to `ckDone` immediately and queued in `ckPending` until the server confirms it; a failed write keeps the tick and stays queued, retried by `ckFlush()` on the next Pack-tab open or the banner's "Retry now". `ckFetch()` replays the queue over the server's rows, so pending local edits win. This is the only feature that writes to `quest_claims` optimistically without rolling back.
