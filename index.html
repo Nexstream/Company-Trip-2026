@@ -649,6 +649,7 @@ const GAME_TABS = [
   {id:'hunt',   label:'Hunt',   fn:'Hunt'},
   {id:'race',   label:'Race',   fn:'Race'},
   {id:'trivia', label:'Trivia', fn:'Trivia'},
+  {id:'sushi',  label:'Sushi',  fn:'Sushi'},
   {id:'arcade', label:'Arcade', fn:'Arcade'},
 ];
 let gameTab='hunt', gameTickTimer=null, gameOpen=false;
@@ -706,5 +707,6 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
 <script src="game-race.js"></script>
 <script src="game-trivia.js"></script>
 <script src="game-arcade.js"></script>
+<script src="game-sushi.js"></script>
 </body>
 </html>
