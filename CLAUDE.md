@@ -37,7 +37,7 @@ Files were uploaded through the **GitHub Contents API** (`gh api`, or the GitHub
 **One global scope, load order matters.** `index.html` holds all CSS, all markup, and a large inline `<script>` (~line 234–699) that defines everything the modules depend on: `sb()`, the `db` helpers, `me`, `players`, `esc()`, `haversine()`, `drawSprite()`, `SPOTS`, `DAYS`, the map, the handbook shell and the games shell. Modules load *after* it at the bottom of the file, in this order:
 
 ```
-art.js → checklist.js → handbook.js → game-hunt.js → game-race.js → game-trivia.js → game-arcade.js
+art.js → checklist.js → handbook.js → game-hunt.js → game-race.js → game-trivia.js → game-arcade.js → game-sushi.js → chat.js
 ```
 
 Nothing is a module in the ESM sense — every top-level `const`/`function` is a browser global.
@@ -55,6 +55,10 @@ Nothing is a module in the ESM sense — every top-level `const`/`function` is a
 
 **Handbook** renders through `TABS[].render()`; the five render functions live in `handbook.js` (`renderTips`, `renderMust`, `renderStay`, `renderPack`) except `renderItin` which is inline in index.html. `renderBook()` also calls `ckOnPackShown()` when the Pack tab is shown, which is how `checklist.js` hooks in.
 
+**Party chat** lives in `chat.js` (`chat*`/`CHAT_` prefixes). It polls `chat_messages` every 3s like reactions do and pops every incoming message twice: a speech balloon above the speaker's map marker (a throwaway Leaflet `divIcon` marker, same trick as `popReaction`) and a toast in `#chatPops` — a `position:fixed`, `z-index:1200` stack outside `#game`, so a message still shows while the games or handbook overlay is open. `chatStart()` is called from `startGame()`; because auto-rejoin runs before `chat.js` loads, the module also self-starts at the bottom of the file if `#game` is already `.on`. Sends are optimistic and reconciled when the row comes back from the server (`chatSettleMine`); a failed send stays in the log with a tap-to-retry line.
+
+**Overlay chrome is measured, not hardcoded.** `trackChrome()` (inline, called from `startGame()`) publishes the live heights of `#hud` and `#tray` as the `--hudh` / `--trayh` CSS vars on `:root`, via a `ResizeObserver` plus `resize`/`orientationchange`/`document.fonts.ready`. `#status` sits at `top:calc(var(--hudh) + 8px)` and `#sidebtns`/`#emojiPanel`/`#chatPanel` at `bottom:calc(var(--trayh) + 10px)`. Use those vars for anything new anchored to the top or bottom of the map — a fixed offset breaks as soon as the HUD wraps to two or three rows on a narrow phone, which is what used to bury the Games and Handbook buttons under the status box.
+
 **Pixel art** is defined as arrays of character rows mapped through a palette (`ART_PAL`, `ICON_PAL`), rasterised to canvas once at load and cached as data URLs. `art('key', size)` returns an `<img>`; `ICON_URL[...]` holds the 8×8 map/itinerary icons. To add art, add rows to `ART16` in art.js — no image files.
 
 ## Data layer (Supabase PostgREST)
@@ -70,6 +74,9 @@ Tables (see `supabase-setup.sql`):
 - **`quest_claims`** — shared by four features, split by `kind`: `'hunt'`, `'race'`, `'pack'` (the personal pack checklist, only ever queried filtered to your own `player_id`). Unique on `(player_id, kind, target)`, so writes are upserts with `?on_conflict=player_id,kind,target` + `Prefer: resolution=merge-duplicates`.
 - **`trivia_answers`** — unique on `(player_id, q_id)`; one active question per 30min derived from the clock, not from server state.
 - **`arcade_scores`** — append-only (`game='deerdash'`); anon has select+insert only.
+- **`chat_messages`** — append-only party chat, polled every 3s by `chat.js`; anon has select+insert only, with a `char_length(body) between 1 and 240` check. `lat`/`lng` are captured at send time so the map balloon can be placed even if the sender has since moved.
+
+The `chat_messages` migration is recorded separately in `supabase-chat.sql` (applied 2026-09-08); `supabase-setup.sql` is not checked into the repo.
 
 `supabase-setup.sql` is a **record of migrations already applied** to project `afxsoxexfahehhjijzlr`, not a script to run against a live DB. When you add a table or column, apply it as a migration and then append the SQL there with the same `-- Migration N: name (applied <date>)` comment style.
 
