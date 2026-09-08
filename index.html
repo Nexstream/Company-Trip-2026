@@ -86,6 +86,19 @@
   .pm.me .lbl{background:var(--red); border-color:var(--gold)}
   .pm .spark{position:absolute; left:50%; top:-6px; width:6px; height:6px; margin-left:-3px; background:var(--gold)}
   .pm.stale canvas{opacity:.5}
+  .pm .em{position:absolute; right:-10px; top:-10px; font-size:16px; line-height:1; filter:drop-shadow(1px 1px 0 rgba(0,0,0,.6))}
+  .rxn{font-size:30px; line-height:1; text-align:center; animation:rxnUp 2s ease-out forwards; filter:drop-shadow(2px 2px 0 rgba(0,0,0,.5))}
+  @keyframes rxnUp{0%{opacity:0;transform:translateY(6px) scale(.6)} 15%{opacity:1;transform:translateY(0) scale(1.15)} 100%{opacity:0;transform:translateY(-56px) scale(1)}}
+
+  /* emoji panel */
+  #emojiPanel{position:absolute; right:66px; bottom:150px; z-index:600; display:none; width:min(300px,calc(100vw - 90px)); padding:10px; background:rgba(27,42,68,.97); border:3px solid var(--gold); box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+  #emojiPanel.on{display:block}
+  #emojiPanel .eh{font-family:'Press Start 2P'; font-size:8px; color:var(--gold); margin:4px 0 6px}
+  #emojiPanel .eh span{color:#b9c3d6; font-family:'VT323'; font-size:15px; margin-left:6px}
+  #emojiPanel .eg{display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin-bottom:8px}
+  #emojiPanel .eg button{background:var(--navy2); border:2px solid var(--gold2); font-size:22px; padding:6px 0; line-height:1}
+  #emojiPanel .eg button.on{border-color:var(--red); background:#2a3a5a}
+  #emojiPanel .eg button.clear{font-family:'Press Start 2P'; font-size:7px; color:#b9c3d6}
   .lm{width:28px; height:28px; image-rendering:pixelated; filter:drop-shadow(2px 2px 0 rgba(0,0,0,.45))}
   .lm.done{opacity:.55}
   .leaflet-popup-content-wrapper{border-radius:0; background:var(--cream); color:var(--ink); border:3px solid var(--ink); font-family:'VT323'; font-size:19px; box-shadow:4px 4px 0 rgba(0,0,0,.4)}
@@ -160,7 +173,14 @@
     <button class="rb on" id="followBtn" title="Follow me">ME</button>
     <button class="rb" id="tripBtn" title="Show whole trip">ALL</button>
     <button class="rb" id="pinBtn" title="Pin to a stop">PIN</button>
+    <button class="rb" id="emojiBtn" title="Status & reactions" style="font-size:18px">😊</button>
     <button class="rb" id="leaveBtn" title="Leave party">EXIT</button>
+  </div>
+  <div id="emojiPanel" class="frame">
+    <div class="eh">STATUS <span>stays on your marker</span></div>
+    <div class="eg" id="statusGrid"></div>
+    <div class="eh">REACT <span>pops for everyone, then fades</span></div>
+    <div class="eg" id="reactGrid"></div>
   </div>
   <div id="tray">
     <div class="th px"><span>NEARBY</span><span id="nextTxt">—</span></div>
@@ -194,8 +214,12 @@ async function sb(path, opts={}){
 const db = {
   upsertPlayer: p => sb("players?on_conflict=id", { method:"POST", headers:{ Prefer:"resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(p) }),
   listPlayers : () => sb("players?select=*&ts=gt."+(Date.now()-STALE_MS)),
-  deletePlayer: id => sb("players?id=eq."+encodeURIComponent(id), { method:"DELETE", headers:{ Prefer:"return=minimal" } })
+  deletePlayer: id => sb("players?id=eq."+encodeURIComponent(id), { method:"DELETE", headers:{ Prefer:"return=minimal" } }),
+  sendReaction: r => sb("reactions", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify(r) }),
+  listReactions: since => sb("reactions?select=id,player_id,emoji,lat,lng,ts&ts=gt."+since+"&order=ts.asc&limit=50")
 };
+const STATUS_EMOJI = ["🍜","☕","🛍️","📸","🚻","😴","🚌","🙋","⛩️","🏨","🍻","🏃"];
+const REACT_EMOJI  = ["👍","❤️","😂","🎉","😱","👋","🔥","🙏","😭","🍙","🦌","🎌"];
 
 const SPOTS = {
   kix:      {n:"Kansai Airport", lat:34.4320, lng:135.2304, icon:"plane"},
@@ -315,11 +339,12 @@ const CHAR_URL=AV_COLORS.map((_,i)=>spriteURL(CHAR,charPal(i)));
    ========================================================= */
 const SAVE_KEY='kansai-quest-me';
 function loadSaved(){ try{ return JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }catch(e){ return null; } }
-function saveMe(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify({id:me.id,name:me.name,av:me.av})); }catch(e){} }
+function saveMe(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify({id:me.id,name:me.name,av:me.av,emoji:me.emoji})); }catch(e){} }
 function clearSaved(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
 const saved=loadSaved();
 const uid=(saved&&saved.id)||'p'+Math.random().toString(36).slice(2,10);
-const me={id:uid,name:"",av:0,lat:null,lng:null,acc:null,manual:null,ts:0};
+const me={id:uid,name:"",av:0,lat:null,lng:null,acc:null,manual:null,ts:0,emoji:(saved&&saved.emoji)||null};
+let lastReactionTs=Date.now(), seenReactions=new Set();
 let players={}, markers={}, watchId=null, selectedAv=0, follow=true, map, accCircle, netOk=true;
 
 /* =========================================================
@@ -373,13 +398,16 @@ function initMap(){
   document.getElementById('followBtn').onclick=()=>{ setFollow(true); if(me.lat!=null) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),16)); else setStatus("No position yet. Allow location access or use PIN."); };
   document.getElementById('tripBtn').onclick=()=>{ setFollow(false); map.flyToBounds(L.latLngBounds(Object.values(SPOTS).map(s=>[s.lat,s.lng])),{padding:[30,30]}); };
   document.getElementById('pinBtn').onclick=manualPin;
+  document.getElementById('emojiBtn').onclick=toggleEmojiPanel;
+  map.on('click dragstart',()=>closeEmojiPanel());
+  buildEmojiPanel();
   document.getElementById('leaveBtn').onclick=leave;
   setTimeout(()=>map.invalidateSize(),50);
 }
 function setFollow(v){ follow=v; document.getElementById('followBtn').classList.toggle('on',v); }
 function playerIcon(p){
   const stale=Date.now()-p.ts>5*60*1000;
-  return L.divIcon({className:'', html:`<div class="pm ${p.id===me.id?'me':''} ${stale?'stale':''}">${p.id===me.id?'<div class="spark"></div>':''}<canvas width="8" height="8" data-av="${p.av||0}"></canvas><div class="lbl">${esc((p.name||'?').slice(0,10))}</div></div>`, iconSize:[32,44], iconAnchor:[16,32], popupAnchor:[0,-30]});
+  return L.divIcon({className:'', html:`<div class="pm ${p.id===me.id?'me':''} ${stale?'stale':''}">${p.id===me.id?'<div class="spark"></div>':''}<canvas width="8" height="8" data-av="${p.av||0}"></canvas>${p.emoji?`<div class="em">${esc(p.emoji)}</div>`:''}<div class="lbl">${esc((p.name||'?').slice(0,10))}</div></div>`, iconSize:[32,44], iconAnchor:[16,32], popupAnchor:[0,-30]});
 }
 function paintCanvases(){ document.querySelectorAll('.pm canvas[data-av]').forEach(c=>{ if(c.dataset.done) return; drawSprite(c.getContext('2d'),CHAR,charPal(+c.dataset.av),0,0,1); c.dataset.done=1; }); }
 function renderMarkers(){
@@ -440,7 +468,7 @@ function startLocation(){
    ========================================================= */
 async function pushMe(){
   if(me.lat==null) return;
-  try{ await db.upsertPlayer({id:me.id,name:me.name,av:me.av,lat:me.lat,lng:me.lng,acc:me.acc,manual:me.manual,ts:me.ts}); netOk=true; }catch(e){ console.warn(e); netOk=false; }
+  try{ await db.upsertPlayer({id:me.id,name:me.name,av:me.av,lat:me.lat,lng:me.lng,acc:me.acc,manual:me.manual,ts:me.ts,emoji:me.emoji}); netOk=true; }catch(e){ console.warn(e); netOk=false; }
   players[me.id]={...me}; document.getElementById('netdot').classList.toggle('off',!netOk);
 }
 async function pullAll(){
@@ -451,7 +479,38 @@ async function pullAll(){
   }catch(e){ console.warn(e); netOk=false; }
   document.getElementById('netdot').classList.toggle('off',!netOk); renderAll();
 }
-function syncLoop(){ pullAll(); setInterval(pullAll,6000); setInterval(()=>{ if(me.lat!=null){ me.ts=Date.now(); pushMe(); } },30000); }
+function syncLoop(){ pullAll(); setInterval(pullAll,6000); pullReactions(); setInterval(pullReactions,3000); setInterval(()=>{ if(me.lat!=null){ me.ts=Date.now(); pushMe(); } },30000); }
+
+/* =========================================================
+   EMOJI: status + reactions
+   ========================================================= */
+function buildEmojiPanel(){
+  const sg=document.getElementById('statusGrid'); sg.innerHTML="";
+  STATUS_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.type="button"; b.textContent=e; b.classList.toggle('on',me.emoji===e);
+    b.onclick=()=>{ me.emoji=(me.emoji===e?null:e); saveMe(); pushMe(); renderAll(); buildEmojiPanel(); closeEmojiPanel(); }; sg.appendChild(b); });
+  const rg=document.getElementById('reactGrid'); rg.innerHTML="";
+  REACT_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.type="button"; b.textContent=e; b.onclick=()=>{ sendReaction(e); closeEmojiPanel(); }; rg.appendChild(b); });
+}
+function toggleEmojiPanel(){ const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
+function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); document.getElementById('emojiBtn').classList.remove('on'); }
+async function sendReaction(emoji){
+  if(me.lat==null){ setStatus("No position yet — allow location or use <b>PIN</b> before reacting."); return; }
+  const r={player_id:me.id,emoji,lat:me.lat,lng:me.lng,ts:Date.now()};
+  popReaction(r);                       // instant local feedback
+  try{ await db.sendReaction(r); }catch(e){ console.warn(e); }
+}
+function popReaction(r){
+  const lat=r.lat??players[r.player_id]?.lat, lng=r.lng??players[r.player_id]?.lng; if(lat==null||!map) return;
+  const m=L.marker([lat,lng],{icon:L.divIcon({className:'',html:`<div class="rxn">${esc(r.emoji)}</div>`,iconSize:[40,40],iconAnchor:[20,60]}),interactive:false,zIndexOffset:2000}).addTo(map);
+  setTimeout(()=>map.removeLayer(m),2100);
+}
+async function pullReactions(){
+  try{
+    const rows=await db.listReactions(lastReactionTs);
+    for(const r of rows){ if(r.ts>lastReactionTs) lastReactionTs=r.ts; if(seenReactions.has(r.id)) continue; seenReactions.add(r.id); if(r.player_id!==me.id) popReaction(r); }
+    if(seenReactions.size>500) seenReactions=new Set([...seenReactions].slice(-200));
+  }catch(e){ console.warn(e); }
+}
 function renderAll(){ renderMarkers(); renderTray(); updateNext(); }
 
 /* =========================================================
