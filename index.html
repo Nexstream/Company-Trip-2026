@@ -368,11 +368,6 @@ function charPal(i){ const a=AV_COLORS[i%AV_COLORS.length]; return {H:a.H,S:"#f1
 function spriteURL(rows,pal){ const c=document.createElement('canvas'); c.width=c.height=8; drawSprite(c.getContext('2d'),rows,pal,0,0,1); return c.toDataURL(); }
 const ICON_URL={}; for(const k in ICONS) ICON_URL[k]=spriteURL(ICONS[k],ICON_PAL);
 const CHAR_URL=AV_COLORS.map((_,i)=>spriteURL(CHAR,charPal(i)));
-const ART_PAL={k:"#140d08",w:"#f7ecd6",c:"#e8d9b0",o:"#e2963c",O:"#9e561e",r:"#c94f36",R:"#7a2a1c",b:"#97663a",B:"#4a2f1c",g:"#659948",G:"#35601f",y:"#f2c14e",Y:"#c9a24a",p:"#e8a0b4",s:"#b9c3d6",S:"#4a5868"};
-const ART16={backpack:["................",".....kkkkkk.....","....kssssssk....","....kssssssk....","...kSssssssSk...","...kSssssssSk...","..kSSSSSSSSSSk..","..kSSSSSSSSSSk..","..kSSssssssSSk..","..kSSssssssSSk..","..kSSssssssSSk..","...kSssssssSk...","...kSssssssSk...","...kSssssssSk...","...kSSSSSSSSk...","....kkkkkkkk...."],beercan:["................",".....kkkkkk.....","....kSSSSSSk....","....kSSSSSSk....","....kssssssk....","....kssssssk....","....kyyyyyyk....","....kyyyyyyk....","....kyyyyyyk....","....kyyyyyyk....","....kwwwwwwk....","....kwwwwwwk....","....kssssssk....","....kssssssk....",".....kkkkkk.....","................"],bottle:["......kkkk......",".....kssssk.....",".....kssssk.....","....kssssssk....","....kssssssk....","...kssssssssk...","...kssssssssk...","...kggggggggk...","...kggggggggk...","...kggggggggk...","...kggggggggk...","...kssssssssk...","...kssssssssk...","...kssssssssk...","...kssssssssk...","....kkkkkkkk...."],camera:["................",".....kkkkkk.....","....kSSSSSSk....","....kSSSSSSk....","..kkkSSSSSSkkk..",".kSSSSkkkkSSSSk.",".kSSSkksskyyySk.",".kSSSkssssyyySk.",".kSSSksssskSSSk.",".kSSSkksskkSSSk.",".kSSSSkkkkSSSSk.",".kSSSSSSSSSSSSk.",".kSSSSSSSSSSSSk.","..kkkkkkkkkkkk..","................","................"],cancoffee:["................",".....kkkkkk.....","....kssssssk....","....kssssssk....","....kssssssk....","....krrrrrrk....","....krrrrrrk....","....kwwwwwwk....","....kwwwwwwk....","....kSSSSSSk....","....kSSSSSSk....","....kSSSSSSk....","....kSSSSSSk....","...kssssssssk...","...kssssssssk...","....kkkkkkkk...."],dango:["......kkkk......",".....kppppk.....","....kppppppk....","....kppppppk....","....kppppppk....","....kpwwwwpk....","....kwwwwwwk....","....kwwwwwwk....","....kwwwwwwk....","....kwggggwk....","....kggggggk....","....kggggggk....","....kggggggk....","....kggggggk....",".....kggggk.....","......kkkk......"],deer:["kBk..k..........",".kBkkBk.........","..kBBkk.........","..kkbbbk........",".kbbbbbbkkk.....",".kbbBbbbbbbkk...",".kbbbbbbbbbbbk..",".kbbbbbbbbbbbbk.","..kbbbbYYYYbbbk.","...kBBbYYYYbBBk.","...kBBbBBbBBBBk.","...kBBbBBbBBBBk.","...kBBkBBbBBBBk.","...kBBkBBkBBBBk.","...kBBkBBkBBBBk.","....kk.kk.kkkk.."],esim:["....kkkkkkkk....","...kSSSSSSSSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSggggggSk...","...kSSssssSSk...","...kSSssssSSk...","....kkkkkkkk...."],famichiki:["................","................","................",".....kkkkkk.....","....kooooook....","...koOyyyoook...","..koyyyyyyoOok..",".kooyyyyyyooook.",".koooyyyyoooook.",".kooooooooooook.",".kooOoooooooook.","..kooooooooOok..","...kooooooook...","....kooooook....",".....kkkkkk.....","................"],iccard:["................","................",".kkkkkkkkkkkkkk.","kGGGGGGGGGGGGGGk","kGGGGGGGGGGGGGGk","kGGGGGGGGGGGGGGk","kGGGGGGGGwwwwGGk","kgggggggwwsswwgk","kgggggggwsssswgk","kgggggggwsssswgk","kgggggggwwsswwgk","kggggggggwwwwggk","kggggggggggggggk",".kkkkkkkkkkkkkk.","................","................"],kakinoha:[".......k........","......kgk.......",".....kggk.......","....kgggk.......","...kggggkkkk....","..kgrrrrrrrrk...",".kggrrrrrrrrk...","kgggRRRRRRRRkkk.",".kkkwwwwwwwwGGGk","...kwwwwwwwwGGk.","...kwwwwwwwwGk..","....kkkkGGGGk...",".......kGGGk....",".......kGGk.....",".......kGk......","........k......."],kobeskewer:["................",".......kk.......","......kbbk......","....kkkbbkkk....","...krrrrrrrrk...","...krrrrrrrrk...","...kRRRRRRRRk...","...kRRRRRRRRk...","....kkkbbkkk....","...krrrrrrrrk...","...krrrrrrrrk...","...kRRRRRRRRk...","...kRRRRRRRRk...","....kkkbbkkk....","......kbbk......",".......kk......."],konbini:["................",".kkkkkkkkkkkkkk.","kggGrrGggGrrGggk","kggGrrGggGrrGggk","kggGrrGggGrrGggk","kggGrrGggGrrGggk","kggGrrGggGrrGggk","kwwwwwwwwwwwwwwk","kwwwwwwwwwwwwwwk","kwwwwSSSSSSwwwwk","kwwwwSSSSSSwwwwk","kwwwwSSSSSSwwwwk","kwwwwSSSSSSwwwwk","kwwwwSSSSSSwwwwk","kwwwwSSSSSSwwwwk",".kkkkkkkkkkkkkk."],matcha:["................","................",".....kkkkkk.....","....kwwwwwwk....","...kwGGGGGGwk...","..kGGGGGGGGGGk..",".kwGGgGgGgGgGwk.",".kwggGGGGGGggwk.",".kwwggggggggwwk.",".kwwwggggggwwwk.","..kwwwwwwwwwwk..","...kwwwwwwwwk...","...kkwwwwwwkk...","..kSSSSSSSSSSk..","..kSSSSSSSSSSk..","...kkkkkkkkkk..."],melonpan:["................","..k..kkkkkkk..k.",".kYkkYyyYyyYkkYk",".kYyyYyyYyyYykYk",".kYyyYyyYyyYyyYk",".kYyyYyyYyyYyyYk","kyYyyYyyYyyYyyYk","kyYyyYyyYyyYyyYk","kyYyyYyyYyyYyyYk","kyYyyYyyYyyYyyYk",".kYyyYyyYyyYyyYk",".kYyyYyyYyyYyyYk",".kYyyYyyYyyYykYk",".kYkkYyyYyyYkkYk",".kYkkYkkYkkYkkYk","..k..k..k..k..k."],mochi:["................","......kkkk......","....kkwwwwkk....","...kwwwwwwwwk...","..kwwwwwwwwwwk..","..kwwsswwwwwwk..",".kwwwsswwwwwwwk.",".kwwwwwwwwwwwwk.",".kwwwwwwwsswwwk.",".kwwwwwwwsswwwk.","..kwwwwwwwwwwk..",".kGwwwwwwwwwwGk.",".kGGwwwwwwwwGGk.","..kkGGwwwwGGkk..","....kkkkkkkk....","................"],okonomiyaki:["................","................","................",".....kkkkkk.....","...kkbbbbbbkk...","..kbbbbbbbbbbk..",".kbbbbbgbbbbbbk.","kObBbBbBbBbBbBOk","kObbbbbbbbbbbbOk","kObbwbbwbbwbbbOk","kOObbYbbbYbbbOOk",".kOOObbbbbbOOOk.","..kOOOOOOOOOOk..","...kkOOOOOOkk...",".....kkkkkk.....","................"],onigiri:["................","................",".......kk.......","......kwwk......","......kwwk......",".....kwwwwk.....",".....kwwwwk.....","....kwwwwwwk....","....kwwkkwwk....","...kwwwkkwwwk...","..kkwwwwwwwwkkk.",".kBBBBBBBBBBBBBk",".kBBBBBBBBBBBBBk",".kBBBBBBBBBBBBBk",".kBBBBBBBBBBBBBk","..kkkkkkkkkkkkk."],onsenbucket:["................","................","................","................","......kkk.......","...kkkssskkkk...","..kswwwwwwwsBk..","..kswwwwwwwsBk..","..kbbOsssbbObk..","..kbbObbObbObk..",".kBBbObbObbOBBk.",".kBBbObbObbOBBk.","..kbbObbObbObk..","..kbbObbObbObk..","...kkkkkkkkkk...","................"],passport:["..kkkkkkkkkkkk..",".kRRRRRRRRRRRRk.",".kRrrrrrrrrrrRk.",".kRrrrrrrrrrrRk.",".kRrryyyyrrrrRk.",".kRryyyyyyrrrRk.",".kRryyyyyyrrrRk.",".kRryyyyyyrrrRk.",".kRryyyyyyrrrRk.",".kRrryyyyrrrrRk.",".kRrrrrrrrrrrRk.",".kRyyyyyyyyyyRk.",".kRyyyyyyyyyyRk.",".kRrrrrrrrrrrRk.",".kRRRRRRRRRRRRk.","..kkkkkkkkkkkk.."],plug:[".....kk...kk....","....kYYk.kYYk...","....kYYk.kYYk...","....kYYk.kYYk...","....kYYk.kYYk...","...kkYYkkkYYk...","..kssYYsssYYsk..","..kssssssssssk..","..kSSSSSSSSSSk..","..kSSSSSSSSSSk..","..kSSSSSSSSSSk..","..kSSSssssSSSk..","..kSSSssssSSSk..","..kSSSSSSSSSSk..","...kkkkkkkkkk...","................"],porkbun:["................","................","................","................",".....kkkkkk.....","...kkccBBcckk...","..kccYYBBYYcck..",".kccccYcYYcccck.","kwccYYcYYcYYccwk","kwccccYcYYccccwk","kwcccYccYcYcccwk","kwwccccccccccwwk",".kwwwccccccwwwk.","..kwwwwwwwwwwk..","...kkwwwwwwkk...",".....kkkkkk....."],powerbank:["................","................","................","...kkkkkkkkkk...","..kSSSSSSSSSSk..","..kSssssssssSk..","..kSsssssssggk..","..kSsssssggggk..","..kSsssggggggk..","..kSsggggggggk..","..kSsggggggggk..","..kSssssssssSk..","..kSSSSSSSSSSk..","...kkkkkkkkkk...","................","................"],ramen:["................","................","................","................","...kkkk.........","..kBBBwkkkkkk...","..kBBBywoggggk..","..kBBBywoggggk..",".kooowwooggggok.","ksoooooooooooosk","kssoooooooooossk",".ksssoooooosssk.",".kSSssssssssSSk.",".kSSSSSSSSSSSSk.","..kkkkkkkkkkkk..","................"],senbei:["................","......kkkk......","....kkYYYYkk....","...kYYyyyyYYk...","..kYyyyyyyyyYk..","..kYyyyyyyyyYk..",".kYyyyyyyyyyyYk.",".kYyyyBBBByyyYk.",".kYyyyBBBByyyYk.",".kYyyyBBBByyyYk.","..kYyyyyyyyyYk..","..kYyyyyyyyyYk..","...kYYyyyyYYk...","....kkYYYYkk....","......kkkk......","................"],shoes:["................","................","................","................","................","................","...kkkkkkk......","..kRRRRRRRkkk...","..kRRRRRRRrwwk..","..krrwrwrrrwwk..","..krrrrrrrrrrkk.",".kwrrrrrrrwwwwwk",".kwwwwwwwwwwwwwk",".kSSSSSSSSSSSSSk",".kSSSSSSSSSSSSSk","..kkkkkkkkkkkkk."],shopbag:["................","................",".....kk...kk....","....kSSk.kSSk...","....kSSk.kSSk...","...kkSSkkkSSk...","..kRRSSRRRSSRk..","..kRRRRRRRRRRk..","..krrrrrrrrrrk..","..krrryyyyrrrk..","..krrrrrrrrrrk..","..krrrrrrrrrrk..","..krrrrrrrrrrk..","..krrrrrrrrrrk..","..krrrrrrrrrrk..","...kkkkkkkkkk..."],softserve:[".....kwwwwk.....","....kwwwwwwk....","...kwwwswwwwk...","..kwwwwwwwwwwk..","..kwwwwwwswwwk..","..kwwwwwwwwwwk..","..kwwwswwwwwwk..","...kwwwwwwwwk...","...kwwwwwwwwk...","....kwwwwwwk....",".....kwwwwk.....","......koOk......","......kOok......",".......kk.......","................","................"],strawsando:["................","................","................","................","..kkkkkkkkkkkk..",".kcccccccccccck.",".kcccccccccccck.",".kwrrrrrrrrrrwk.",".kwwrrrrrrrrrrk.",".kwwwrrrrwrrrrk.",".kcccccccccccck.",".kcccccccccccck.","..kkkkkkkkkkkk..","................","................","................"],sushi:["................","................","....kkkkkkkk....","..kkRRRRRRRRkk..",".kRRRRRRRRRRRRk.",".kRRRRRRRRRRRRk.",".krrRRRRRRRRrrk.",".kBrrrrrrrrrrBk.",".kBBBrrrrrrBBBk.",".kBBBBBBBBBBBBk.",".kwwwwwwwwwwwwk.",".kwwwwwwwwwwwwk.",".kwwwwwwwwwwwwk.",".kwwwwwwwwwwwwk.","..kkkkkkkkkkkk..","................"],takoyaki:["................","................","................","................","..kkkkkkkkkkkk..",".koowowowowoYok.","koyBoByBoYyBoBok","koyyoYyyooyyoook","kooooooooooooook","kooooooooooooook",".kooooooooooook.","kwwwwwwwwwwwwwwk","kwwwwwwwwwwwwwwk","kwwwwwwwwwwwwwwk","kwwwwwwwwwwwwwwk",".kkkkkkkkkkkkkk."],tamagoyaki:["................","................","................","................","..kkkkkkkkkkkk..",".kwwwwwwwwwwwwk.",".kYYYYYYYYYYYYk.",".kyyyyyyyyyyyyk.",".kYYYYYYYYYYYYk.",".kyyyyyyyyyyyyk.",".kYYYYYYYYYYYYk.",".kyyyyyyyyyyyyk.","..kkkkkkkkkkkk..","................","................","................"],torii:["................","................",".kkkkkkkkkkkkkk.","krrrrrrrrrrrrrrk","krrrrrrrrrrrrrrk","krrrrrrrrrrrrrrk","kRRrrRRRRRRrrRRk","kRRrrRRRRRRrrRRk",".kkrrkRRRRkrrkk.","..krrkRRRRkrrk..","..krrkkkkkkrrk..","..krrk....krrk..","..krrk....krrk..","..krrk....krrk..","..krrk....krrk..","...kk......kk..."],umbrella:["................","........k.......","....kkkkrkkkk...","...krrrrrrrrrk..","..krrrrrrrrrrrk.",".krrrrrrrrrrrrrk","krrrrrrrrrrrrrrr","krRrrRrRRRrRrrRr",".kkkkkkBBRkkkkkk","......kBBk......","......kBBk......","......kBBkk.....","......kBBBBk....","......kBBBBBk...",".......kkBBBk...",".........kkk...."],vending:["..kkkkkkkkkkkk..",".krrrrrrrrrrrrk.",".krssssssssssrk.",".krsSsSsSsSssrk.",".krsSsSsSsSssrk.",".krsSsSsSsSssrk.",".krsSsSsSsSssrk.",".krsSsSsSsSssrk.",".krssssssssssrk.",".krrrrrrrrrrrrk.",".krSSSSSSSSSSrk.",".krSyySyySyySrk.",".krSyySyySyySrk.",".krSSSSSSSSSSrk.",".krrrrrrrrrrrrk.","..kkkkkkkkkkkk.."],yencoin:[".....kkkkkk.....","....kYYYYYYk....","...kYYyyyyYYk...","..kYyyyyyyyyYk..",".kYyyyyYYyyyyYk.","kYYyyyyYYyyyyYYk","kYyyyYYYYYYyyyYk","kYyyyYYYYYYyyyYk","kYyyyyyYYyyyyyYk","kYyyyYYYYYYyyyYk","kYYyyYYYYYYyyYYk",".kYyyyyYYyyyyYk.","..kYyyyyyyyyYk..","...kYYyyyyYYk...","....kYYYYYYk....",".....kkkkkk....."],yennote:["................","................","................",".kkkkkkkkkkkkkk.","kgggggyyyygggggk","kgGGGyyyyyyGGGgk","kgGGGyyyyyyGGGgk","kgGGGyyyyyyGGGgk","kgGGGyyyyyyGGGgk","kgGGGGyyyyGGGGgk","kgGGGGGGGGGGGGgk","kggggggggggggggk",".kkkkkkkkkkkkkk.","................","................","................"],yudofu:["................","................","................","....kkk.........","...kgggk........","...kgggkkkk.....","...kgggsssskk...","..ksswwwswwwsk..",".kssswwwswwwssk.",".kssswwwswwwssk.","kSSssssssssssSSk","kSSSSssssssSSSSk",".kSSSSSSSSSSSSk.","..kSSSSSSSSSSk..","...kkSSSSSSkk...",".....kkkkkk....."]};
-function spriteURLN(rows,pal){ const c=document.createElement('canvas'); c.width=c.height=rows.length; drawSprite(c.getContext('2d'),rows,pal,0,0,1); return c.toDataURL(); }
-const ART_URL={}; for(const k in ART16) ART_URL[k]=spriteURLN(ART16[k],ART_PAL);
-function art(key,size){ size=size||28; const u=ART_URL[key]; if(!u) return ""; return `<img class="art-ic" src="${u}" alt="" style="width:${size}px;height:${size}px">`; }
 
 
 /* =========================================================
@@ -463,48 +458,248 @@ function renderMarkers(){
   });
   for(const id in markers){ if(!live.has(id)){ map.removeLayer(markers[id]); delete markers[id]; } }
   paintCanvases();
+  if(me.lat!=null){
+    if(!accCircle) accCircle=L.circle([me.lat,me.lng],{radius:me.acc||30,color:'#c8442b',weight:2,fillColor:'#c8442b',fillOpacity:.12}).addTo(map);
+    else { accCircle.setLatLng([me.lat,me.lng]); accCircle.setRadius(me.manual?15:(me.acc||30)); }
+  }
 }
-function startLocation(){ if(navigator.geolocation){ watchId=navigator.geolocation.watchPosition(pos=>{ me.lat=pos.coords.latitude; me.lng=pos.coords.longitude; me.acc=pos.coords.accuracy; me.ts=Date.now(); if(accCircle) map.removeLayer(accCircle); accCircle=L.circle([me.lat,me.lng],{radius:me.acc,color:'#1b2a44',fill:false,dashArray:'4 4',weight:1,opacity:.4}).addTo(map); if(follow) map.flyTo([me.lat,me.lng],Math.max(map.getZoom(),18)); me.manual=null; },e=>{ setStatus("📍 "+ (e.code===1?"Allow location access":"Can't locate")); },{enableHighAccuracy:true,maximumAge:0}); } }
-function syncLoop(){ db.listPlayers().then(ps=>{ for(const p of ps||[]) players[p.id]=p; renderMarkers(); updateHud(); }).catch(e=>{ netOk=false; console.error(e); }).finally(()=>{ setTimeout(syncLoop,2000); }); db.listReactions(lastReactionTs).then(rs=>{ for(const r of rs||[]) seenReactions.has(r.id) ||(lastReactionTs=Math.max(lastReactionTs,r.ts+1), seenReactions.add(r.id), showReaction(r)); }).catch(e=>{ netOk=false; }); if(me.lat!=null) db.upsertPlayer(me).catch(e=>{ netOk=false; }); }
-function updateHud(){ const cnt=Object.keys(players).length; document.getElementById('cnt').textContent=cnt; document.getElementById('netdot').classList.toggle('off',!netOk); const today=new Date().toISOString().slice(0,10); const day=DAYS.find(d=>d.d===today); document.getElementById('hudDay').textContent='Day '+(day?(DAYS.indexOf(day)+1):'-'); }
-function esc(s){ return (s||'').replace(/<script|</g,'_').slice(0,60); }
-function setStatus(s){ document.getElementById('status').textContent=s; }
-function whenVisited(k){ const d=DAYS.find(d=>d.ev.some(e=>e[3]===k)); return d?'Visit: '+d.label:''; }
-function distFromMe(lat,lng){ if(me.lat==null) return ''; const d=Math.sqrt((lat-me.lat)**2+(lng-me.lng)**2)*111; return d<1?'<100m away':d<50?Math.round(d)+'km away':'far away'; }
-function nearestSpot(lat,lng){ let best='?', bestD=1e9; for(const k in SPOTS){ const s=SPOTS[k], d=(lat-s.lat)**2+(lng-s.lng)**2; if(d<bestD) best=s.n, bestD=d; } return 'Near '+best; }
-function manualPin(){ const opts=Object.entries(SPOTS).map(([k,s])=>`<option value="${k}">${s.n}</option>`).join(''); const html=`<select id="pinSelect">${opts}</select><br><button onclick="pinGo()">Pin me</button>`; const d=document.createElement('div'); d.innerHTML=html; const s=document.getElementById('status'); s.innerHTML=''; s.appendChild(d); window.pinGo=()=>{ pinTo(document.getElementById('pinSelect').value); }; }
-function pinTo(k){ const s=SPOTS[k]; me.lat=s.lat; me.lng=s.lng; me.manual=k; me.ts=Date.now(); map.flyTo([me.lat,me.lng],17); renderMarkers(); db.upsertPlayer(me); }
-function toggleEmojiPanel(){ document.getElementById('emojiPanel').classList.toggle('on'); }
-function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); }
-function buildEmojiPanel(){ const sg=document.getElementById('statusGrid'), rg=document.getElementById('reactGrid'); STATUS_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.onclick=()=>{ me.emoji=me.emoji===e?null:e; b.classList.toggle('on'); db.upsertPlayer(me); renderMarkers(); }; sg.appendChild(b); }); const cb=document.createElement('button'); cb.className='clear'; cb.textContent='clear'; cb.onclick=()=>{ me.emoji=null; [...sg.children].forEach(x=>x.classList.remove('on')); db.upsertPlayer(me); renderMarkers(); }; sg.appendChild(cb); REACT_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.onclick=()=>{ db.sendReaction({player_id:me.id,emoji:e,lat:me.lat,lng:me.lng,ts:Date.now()}); showReaction({emoji:e,lat:me.lat,lng:me.lng}); }; rg.appendChild(b); }); }
-function showReaction(r){ const el=document.createElement('div'); el.className='rxn'; el.textContent=r.emoji; if(map.getBounds().contains([r.lat,r.lng])) map.getPane('popupPane').appendChild(el), el.style.left=(map.latLngToLayerPoint([r.lat,r.lng]).x)+'px', el.style.top=(map.latLngToLayerPoint([r.lat,r.lng]).y)+'px', setTimeout(()=>el.remove(),2000); }
-function leave(){ if(confirm('Leave the party?')){ clearSaved(); db.deletePlayer(me.id); location.reload(); } }
+window.pinTo=function(k){ me.manual=k; me.lat=SPOTS[k].lat; me.lng=SPOTS[k].lng; me.ts=Date.now(); map.closePopup(); pushMe(); renderAll(); setStatus(`Pinned to <b>${SPOTS[k].n}</b>. Tap ME twice to go back to GPS.`); if(follow) map.flyTo([me.lat,me.lng],16); document.getElementById('book').classList.remove('on'); };
+function manualPin(){
+  const names=Object.keys(SPOTS); let msg="Pin yourself to a stop. Type a number:\n\n0. Back to live GPS\n";
+  names.forEach((k,i)=>msg+=`${i+1}. ${SPOTS[k].n}\n`);
+  const pick=prompt(msg); if(pick===null) return; const n=parseInt(pick,10);
+  if(n===0){ me.manual=null; setStatus("Back to live GPS."); return; }
+  const k=names[n-1]; if(k) pinTo(k);
+}
+async function leave(){
+  if(!confirm("Leave the party? Your marker will be removed for everyone.")) return;
+  try{ await db.deletePlayer(me.id); }catch(e){}
+  clearSaved();
+  if(watchId!=null) navigator.geolocation.clearWatch(watchId);
+  location.reload();
+}
 
 /* =========================================================
-   GAMES
+   LOCATION
    ========================================================= */
-const GAMES = [{name:"Hunt",page:()=>`<h4>Mission</h4><p>Find challenges on the map. Check in to spots and earn points. Track your progress on the leaderboard.</p><h4>How to play</h4><ul><li>Open map and look for <b>!Hunt</b> markers nearby</li><li>Tap a marker and read the challenge</li><li>Complete the mission (take a photo, answer a trivia, etc.)</li><li>Check in by tapping "I solved this"</li><li>Earn 10-30 points per challenge</li><li>Compete on the leaderboard</li></ul><h4>Tips</h4><ul><li>Check in at Fushimi Inari, Kiyomizu, Arima Onsen for bonus points</li><li>Find all challenges at a spot for a site bonus +50</li><li>Challenges reset daily</li></ul>`},{name:"Race",page:()=>`<h4>Mission</h4><p>Race around Kansai and check in at every major stop on our itinerary. Fastest team wins!</p><h4>How to play</h4><ul><li>Open the <b>Race</b> tab to see today's destination</li><li>Travel there (walking, bus, taxi—any way you can)</li><li>Hit "Check in" when you arrive</li><li>Server records your arrival time</li><li>Move to the next stop the next day</li></ul><h4>Leaderboard</h4><p>Times are compared by party arrival, so <b>coordinate travel</b> to beat other teams. Travel in groups, split up, whatever works for you.</p>`},{name:"Trivia",page:()=>`<h4>Mission</h4><p>Answer daily questions about Japan, Kansai history, and the Nexstream trip. Test your knowledge and climb the leaderboard.</p><h4>How to play</h4><ul><li>Open the <b>Trivia</b> tab to see 3 questions for today</li><li>Each question has 4 choices</li><li>You get 10 points for a correct answer</li><li>Questions are the same for everyone, but rotate each day</li><li>Submit your answers before midnight</li></ul><h4>Topics</h4><p>Questions will cover: Japanese culture, regional history, Kobe & Osaka, temples & shrines, Kansai slang, company trivia.</p>`},{name:"Arcade",page:()=>`<h4>Mission</h4><p>Play <b>Deer Dash</b>—a retro-style pixel runner. Collect food, avoid obstacles, reach the highest score.</p><h4>How to play</h4><ul><li>Tap <b>Play Arcade</b> to start Deer Dash</li><li>Use arrow keys (or swipe on mobile) to jump and duck</li><li>Collect sashimi, mochi, dango for +5 points</li><li>Hit obstacles (cars, signposts) and lose 10 points</li><li>Survive as long as possible</li><li>High scores upload automatically</li></ul><h4>Pro Tips</h4><ul><li>Tap the jump button twice to do a double-jump</li><li>Stay on ground for faster ground-slide</li><li>Watch the score multiplier—collect 3 foods in a row for 2x points</li></ul>`}];
-document.getElementById('openGames').onclick=()=>{ const g=document.getElementById('games'); g.classList.add('on'); const t=document.getElementById('gtabs'), p=document.getElementById('gamePage'); t.innerHTML=''; p.innerHTML=''; GAMES.forEach((gm,i)=>{ const b=document.createElement('button'); b.textContent=gm.name; b.className=i===0?'on':''; b.onclick=()=>{ [...t.children].forEach(x=>x.classList.remove('on')); b.classList.add('on'); p.innerHTML=gm.page(); }; t.appendChild(b); }); p.innerHTML=GAMES[0].page(); };
-document.getElementById('closeGames').onclick=()=>{ document.getElementById('games').classList.remove('on'); };
+const statusEl=document.getElementById('status'); let firstFix=true;
+function setStatus(t){ statusEl.innerHTML=t; }
+function startLocation(){
+  if(!navigator.geolocation){ setStatus("Location not supported here. Use <b>PIN</b> to place yourself."); return; }
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    if(me.manual) return;
+    me.lat=pos.coords.latitude; me.lng=pos.coords.longitude; me.acc=pos.coords.accuracy; me.ts=Date.now();
+    const dOsaka=haversine(me.lat,me.lng,SPOTS.osakaH.lat,SPOTS.osakaH.lng);
+    setStatus(dOsaka<80 ? `Live GPS · ±${Math.round(me.acc)} m` : `Live GPS · you are <b>${fmtKm(dOsaka)}</b> from Osaka. Tap ALL to see the trip map.`);
+    if(firstFix){ firstFix=false; map.setView([me.lat,me.lng],dOsaka<80?18:12); }
+    else if(follow) map.panTo([me.lat,me.lng],{animate:true});
+    pushMe(); renderAll();
+  },err=>{
+    setStatus(`Location ${err.code===1?"permission denied":"unavailable"}. Use <b>PIN</b> so the party can still see you.`);
+  },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+}
+
+/* =========================================================
+   SHARED STORAGE
+   ========================================================= */
+async function pushMe(){
+  if(me.lat==null) return;
+  try{ await db.upsertPlayer({id:me.id,name:me.name,av:me.av,lat:me.lat,lng:me.lng,acc:me.acc,manual:me.manual,ts:me.ts,emoji:me.emoji}); netOk=true; }catch(e){ console.warn(e); netOk=false; }
+  players[me.id]={...me}; document.getElementById('netdot').classList.toggle('off',!netOk);
+}
+async function pullAll(){
+  try{
+    const rows=await db.listPlayers(); const fresh={};
+    for(const p of rows) fresh[p.id]=p;
+    if(me.lat!=null) fresh[me.id]={...me}; players=fresh; netOk=true;
+  }catch(e){ console.warn(e); netOk=false; }
+  document.getElementById('netdot').classList.toggle('off',!netOk); renderAll();
+}
+function syncLoop(){ pullAll(); setInterval(pullAll,6000); pullReactions(); setInterval(pullReactions,3000); setInterval(()=>{ if(me.lat!=null){ me.ts=Date.now(); pushMe(); } },30000); }
+
+/* =========================================================
+   EMOJI: status + reactions
+   ========================================================= */
+function buildEmojiPanel(){
+  const sg=document.getElementById('statusGrid'); sg.innerHTML="";
+  STATUS_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.type="button"; b.textContent=e; b.classList.toggle('on',me.emoji===e);
+    b.onclick=()=>{ me.emoji=(me.emoji===e?null:e); saveMe(); pushMe(); renderAll(); buildEmojiPanel(); closeEmojiPanel(); }; sg.appendChild(b); });
+  const rg=document.getElementById('reactGrid'); rg.innerHTML="";
+  REACT_EMOJI.forEach(e=>{ const b=document.createElement('button'); b.type="button"; b.textContent=e; b.onclick=()=>{ sendReaction(e); closeEmojiPanel(); }; rg.appendChild(b); });
+}
+function toggleEmojiPanel(){ const p=document.getElementById('emojiPanel'); p.classList.toggle('on'); document.getElementById('emojiBtn').classList.toggle('on',p.classList.contains('on')); }
+function closeEmojiPanel(){ document.getElementById('emojiPanel').classList.remove('on'); document.getElementById('emojiBtn').classList.remove('on'); }
+async function sendReaction(emoji){
+  if(me.lat==null){ setStatus("No position yet — allow location or use <b>PIN</b> before reacting."); return; }
+  const r={player_id:me.id,emoji,lat:me.lat,lng:me.lng,ts:Date.now()};
+  popReaction(r);                       // instant local feedback
+  try{ await db.sendReaction(r); }catch(e){ console.warn(e); }
+}
+function popReaction(r){
+  const lat=r.lat??players[r.player_id]?.lat, lng=r.lng??players[r.player_id]?.lng; if(lat==null||!map) return;
+  const m=L.marker([lat,lng],{icon:L.divIcon({className:'',html:`<div class="rxn">${esc(r.emoji)}</div>`,iconSize:[40,40],iconAnchor:[20,60]}),interactive:false,zIndexOffset:2000}).addTo(map);
+  setTimeout(()=>map.removeLayer(m),2100);
+}
+async function pullReactions(){
+  try{
+    const rows=await db.listReactions(lastReactionTs);
+    for(const r of rows){ if(r.ts>lastReactionTs) lastReactionTs=r.ts; if(seenReactions.has(r.id)) continue; seenReactions.add(r.id); if(r.player_id!==me.id) popReaction(r); }
+    if(seenReactions.size>500) seenReactions=new Set([...seenReactions].slice(-200));
+  }catch(e){ console.warn(e); }
+}
+function renderAll(){ renderMarkers(); renderTray(); updateNext(); }
+
+/* =========================================================
+   NEARBY TRAY
+   ========================================================= */
+function renderTray(){
+  const now=Date.now();
+  const list=Object.values(players).filter(p=>now-p.ts<15*60*1000&&p.lat!=null)
+    .sort((a,b)=>(a.id===me.id?-1:b.id===me.id?1:(me.lat!=null?haversine(me.lat,me.lng,a.lat,a.lng)-haversine(me.lat,me.lng,b.lat,b.lng):a.name.localeCompare(b.name))));
+  document.getElementById('cnt').textContent=list.length;
+  const el=document.getElementById('cards'); el.innerHTML="";
+  if(!list.length){ el.innerHTML='<div style="font-size:17px;color:#b9c3d6;padding:6px">No one on the map yet. Allow location or tap PIN.</div>'; return; }
+  list.forEach(p=>{
+    const d=document.createElement('div'); d.className='card2'+(p.id===me.id?' me':'');
+    const c=document.createElement('canvas'); c.width=c.height=8; drawSprite(c.getContext('2d'),CHAR,charPal(p.av||0),0,0,1);
+    const ago=Math.round((now-p.ts)/60000);
+    const dist=(p.id!==me.id&&me.lat!=null)?`<b>${fmtKm(haversine(me.lat,me.lng,p.lat,p.lng))}</b> away`:"you";
+    const av=document.createElement('div'); av.className='av'; av.appendChild(c); if(p.emoji) av.insertAdjacentHTML('beforeend',`<div class="em2">${esc(p.emoji)}</div>`);
+    d.appendChild(av); d.insertAdjacentHTML('beforeend',`<div class="n">${esc(p.name)}</div><div class="m">${dist}<br>${ago<1?"just now":ago+" min"}</div>`);
+    d.onclick=()=>{ setFollow(false); map.flyTo([p.lat,p.lng],16); if(markers[p.id]) markers[p.id].openPopup(); };
+    el.appendChild(d);
+  });
+}
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+function whenVisited(k){ for(const d of DAYS) for(const e of d.ev) if(e[3]===k) return `${d.label} · ${e[0]}`; return ""; }
+function distFromMe(lat,lng){ if(me.lat==null) return ""; return `<br><span style="color:#c8442b">${fmtKm(haversine(me.lat,me.lng,lat,lng))} from you</span>`; }
+function haversine(a,b,c,d){ const R=6371,toR=x=>x*Math.PI/180; const dl=toR(c-a),dg=toR(d-b); const h=Math.sin(dl/2)**2+Math.cos(toR(a))*Math.cos(toR(c))*Math.sin(dg/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+function fmtKm(km){ return km<1?Math.round(km*1000)+" m":(km<100?km.toFixed(1)+" km":Math.round(km).toLocaleString()+" km"); }
+function nearestSpot(lat,lng){ if(lat==null) return "—"; let best=null,bd=1e9; for(const k in SPOTS){ const d=haversine(lat,lng,SPOTS[k].lat,SPOTS[k].lng); if(d<bd){bd=d;best=SPOTS[k];} } if(bd>60) return "Outside Kansai"; return bd<0.4?"At "+best.n:`${fmtKm(bd)} from ${best.n}`; }
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* =========================================================
+   DAY / NEXT STOP
+   ========================================================= */
+function todayISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0'); }
+function todayIdx(){ return DAYS.findIndex(d=>d.d===todayISO()); }
+function updateHud(){
+  const i=todayIdx(); const el=document.getElementById('hudDay');
+  if(i>=0) el.textContent=DAYS[i].label+" · "+DAYS[i].title;
+  else { const days=Math.ceil((new Date("2026-09-28T22:00:00+08:00")-new Date())/86400000); el.textContent=days>0?`${days} days to departure`:"Trip complete"; }
+  updateNext();
+}
+function updateNext(){
+  const i=todayIdx(); const el=document.getElementById('nextTxt');
+  if(i<0){ el.textContent="Journey begins 28 Sep, 10 PM at the office"; return; }
+  const now=new Date(); const mins=now.getHours()*60+now.getMinutes();
+  const ev=DAYS[i].ev.find(e=>{ const m=parseTime(e[0]); return m!=null&&m>=mins; })||DAYS[i].ev[DAYS[i].ev.length-1];
+  const spot=ev[3]?SPOTS[ev[3]]:null;
+  el.textContent=`NEXT ${ev[0]} ${ev[1]}${spot&&me.lat!=null?` · ${fmtKm(haversine(me.lat,me.lng,spot.lat,spot.lng))}`:""}`;
+}
+function parseTime(t){ const m=/(\d+):(\d+)\s*(AM|PM)/.exec(t); if(!m) return null; let h=+m[1]%12; if(m[3]==='PM') h+=12; return h*60+ +m[2]; }
+setInterval(updateHud,60000);
 
 /* =========================================================
    HANDBOOK
    ========================================================= */
-const HANDBOOK = [
-  {title:"Trip Overview",page:()=>{const today=new Date().toISOString().slice(0,10); const dayIdx=DAYS.findIndex(d=>d.d===today); return `<h4>Nexstream Kansai Quest 2026</h4><p><b>29 Sep – 4 Oct</b> | Kyoto · Kobe · Nara · Osaka</p><p>This is an interactive map game where your real-world location drives the leaderboard. Find your party, read the handbook, and don't miss the bus.</p><div class="daysel">${DAYS.map((d,i)=>`<button class="${i===dayIdx?'on today':i<dayIdx?'done':''}">${d.label}</button>`).join('')}</div><h4>Quick Links</h4><ul><li><b>Games tab:</b> Hunt, Race, Trivia, Arcade</li><li><b>Handbook tabs:</b> Itinerary, Items, Handbook</li><li><b>Status emoji:</b> Tell everyone what you're doing</li><li><b>Reactions:</b> Celebrate with floaty emoji animations</li></ul>`;}},
-  {title:"Itinerary",page:()=>{const today=new Date().toISOString().slice(0,10); const d=DAYS.find(dy=>dy.d===today)||DAYS[0]; return `<h4>${d.label}: ${d.title}</h4><div class="tl">${d.ev.map(e=>`<div class="ev"><span class="tm">${e[0]}</span> <span class="nm">${e[1]}</span> ${e[2]?'<span class="ds">' + e[2] + '</span>':''} ${e[3]?'<button class="go" onclick="pinTo(\\''+e[3]+'\\')">📍</button>':''}</div>`).join('')}</div>`;}},
-  {title:"Items & Art",page:()=>`<h4>38-piece pixel art</h4><p>A complete visual encyclopedia of the trip—every food, landmark, and adventure captured in 16×16 retro style.</p><div class="art-hero">${['backpack','passport','plug','iccard','esim','umbrella','shoes','shopbag','camera'].map(k=>`<div class="art-tile">${art(k)}<span>${k}</span></div>`).join('')}</div><div class="art-hero">${['ramen','takoyaki','okonomiyaki','dango','mochi','melonpan','sushi','onigiri','beercan'].map(k=>`<div class="art-tile">${art(k)}<span>${k}</span></div>`).join('')}</div><div class="art-hero">${['cancoffee','matcha','softserve','strawsando','tamagoyaki','kakinoha','famichiki','kobeskewer','porkbun'].map(k=>`<div class="art-tile">${art(k)}<span>${k}</span></div>`).join('')}</div><div class="art-hero">${['yencoin','yennote','konbini','vending','senbei','dango','flower','deer'].map(k=>k==='flower'||k==='flower'?'':art(k)).filter(Boolean).map(a=>'<div class="art-tile">'+a+'<span></span></div>').join('')}</div>`},
-  {title:"Essentials",page:()=>`<div class="kon"><div class="k"><div class="kn">Travel docs</div><ul><li>Passport + return flight tickets</li><li>Travel insurance card</li><li>Luggage tags (for checked bags)</li></ul></div><div class="k"><div class="kn">Cash & cards</div><ul><li>Malaysian Ringgit (MYR)</li><li>Japanese Yen (JPY) ~150,000</li><li>Credit/debit card (Visa/Mastercard)</li><li>IC card for transport</li></ul></div><div class="k"><div class="kn">Phone & connectivity</div><ul><li>SIM card or eSIM (SoftBank recommended)</li><li>Portable power bank</li><li>USB-C cable + adapter</li><li>Google Maps offline map (download now)</li></ul></div><div class="k"><div class="kn">Luggage</div><ul><li>Daypack (15–20L)</li><li>Comfortable walking shoes</li><li>Weather: Sep–Oct is warm & humid</li><li>Light layers (temples require long sleeves)</li></ul></div><div class="k"><div class="kn">Medications & toiletries</div><ul><li>Prescription meds (bring enough)</li><li>First-aid kit basics</li><li>Sunscreen & insect repellent</li><li>Japanese pharmacies widely available</li></ul></div><div class="k"><div class="kn">Cultural tips</div><ul><li>Remove shoes indoors (temples, homes)</li><li>Bow slightly when greeting</li><li>Say "itadakimasu" before meals</li><li>Respect temple etiquette & quiet zones</li></ul></div></div>`},
-  {title:"Kansai 101",page:()=>`<h4>Kyoto — The Cultural Heart</h4><p>Over 1,000 years of temple history. Fushimi Inari has 10,000+ torii gates. Walk Sannenzaka's wooden-fronted shops for classic Kyoto vibes. Cherry blossoms (spring) and autumn colors peak here.</p><h4>Kobe — The Gateway Port</h4><p>Modern harbor meets mountain views. Kobe beef is world-famous (yes, it's worth the splurge). Arima Onsen, perched in the mountains north of Kobe, is Japan's oldest hot spring. Perfect for unwinding.</p><h4>Nara — The Deer Park Paradise</h4><p>Roaming sika deer bow for crackers. Todai-ji's Great Buddha is colossal. Less crowded than Kyoto; easier to walk and explore freely.</p><h4>Osaka — The Food Capital</h4><p>Takoyaki (octopus balls), okonomiyaki (savory pancakes), ramen—if it's fried or chewy, it's here. Osaka Castle is iconic. Dotonbori district buzzes with neon and noise.</p><h4>Language & Etiquette</h4><ul><li><b>Greetings:</b> "Konnichiwa" (hello), "Arigatou gozaimasu" (thank you very much)</li><li><b>Polite phrases:</b> "Sumimasen" (excuse me), "Eigo wa hanasemasu ka?" (Do you speak English?)</li><li><b>Temple behavior:</b> Quiet, respectful, no photos in certain areas</li><li><b>Train etiquette:</b> Stand on the left in Kansai (opposite of Tokyo)</li><li><b>Tipping:</b> Not expected; rounding up is polite</li></ul>`},
+const TABS = [
+  {id:'itin', label:'Itinerary', render:()=>renderItin()},
+  {id:'tips', label:'Japan tips', render:()=>renderTips()},
+  {id:'must', label:'Must visit', render:()=>renderMust()},
+  {id:'stay', label:'Flights & hotels', render:()=>renderStay()},
+  {id:'pack', label:'Pack list', render:()=>renderPack()},
 ];
-const handbook={};  HANDBOOK.forEach((p,i)=>{ handbook[p.title]=p.page; });
-document.getElementById('openBook').onclick=()=>{ const b=document.getElementById('book'); b.classList.add('on'); const t=document.getElementById('tabs'), p=document.getElementById('page'); t.innerHTML=''; p.innerHTML=''; HANDBOOK.forEach((hb,i)=>{ const btn=document.createElement('button'); btn.textContent=hb.title; btn.className=i===0?'on':''; btn.onclick=()=>{ [...t.children].forEach(x=>x.classList.remove('on')); btn.classList.add('on'); p.innerHTML=hb.page(); }; t.appendChild(btn); }); p.innerHTML=HANDBOOK[0].page(); };
-document.getElementById('closeBook').onclick=()=>{ document.getElementById('book').classList.remove('on'); };
+let tab='itin', dayView=Math.max(0,todayIdx()>=0?todayIdx():1);
+const tabsEl=document.getElementById('tabs');
+TABS.forEach(t=>{ const b=document.createElement('button'); b.textContent=t.label; b.onclick=()=>{tab=t.id; renderBook();}; b.dataset.id=t.id; tabsEl.appendChild(b); });
+document.getElementById('openBook').onclick=()=>{ document.getElementById('book').classList.add('on'); renderBook(); };
+document.getElementById('closeBook').onclick=()=>document.getElementById('book').classList.remove('on');
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.getElementById('book').classList.remove('on'); });
+
+function renderBook(){
+  [...tabsEl.children].forEach(b=>b.classList.toggle('on',b.dataset.id===tab));
+  document.getElementById('page').innerHTML = TABS.find(t=>t.id===tab).render();
+  document.querySelectorAll('.daysel button').forEach(b=>b.onclick=()=>{dayView=+b.dataset.i; renderBook();});
+  document.querySelectorAll('.go').forEach(b=>b.onclick=()=>pinTo(b.dataset.k));
+  document.querySelectorAll('.fly').forEach(b=>b.onclick=()=>{ const s=SPOTS[b.dataset.k]; setFollow(false); map.flyTo([s.lat,s.lng],16); document.getElementById('book').classList.remove('on'); });
+}
+function renderItin(){
+  const ti=todayIdx();
+  let h='<div class="daysel">'+DAYS.map((d,i)=>`<button data-i="${i}" class="${i===dayView?'on':''} ${i===ti?'today':''}">${d.label}</button>`).join('')+'</div>';
+  const d=DAYS[dayView];
+  h+=`<h4>${d.label} · ${fmtDate(d.d)} — ${d.title}</h4><div class="tl">`;
+  d.ev.forEach(e=>{ const ic=e[3]?`<img class="art-ev-ic" src="${ICON_URL[SPOTS[e[3]].icon]||ICON_URL.temple}" alt="">`:""; h+=`<div class="ev"><span class="tm">${e[0]}</span>${ic}<span class="nm">${esc(e[1])}</span>${e[3]?`<button class="fly" data-k="${e[3]}">Map</button><button class="go" data-k="${e[3]}">I am here</button>`:""}${e[2]?`<div class="ds">${esc(e[2])}</div>`:""}</div>`; });
+  h+=`</div><p class="ds" style="color:#6b5f45;font-size:18px">Tap "Map" to see a stop, or "I am here" to pin yourself to a stop when GPS is off. Agree on a time and place to regroup before any free & easy session.</p>`;
+  return h;
+}
+function fmtDate(iso){ const d=new Date(iso+"T00:00:00"); return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); }
 
 /* =========================================================
-   STARTUP
+   GAMES OVERLAY SHELL
    ========================================================= */
+const GAME_TABS = [
+  {id:'hunt',   label:'Hunt',   fn:'Hunt'},
+  {id:'race',   label:'Race',   fn:'Race'},
+  {id:'trivia', label:'Trivia', fn:'Trivia'},
+  {id:'arcade', label:'Arcade', fn:'Arcade'},
+];
+let gameTab='hunt', gameTickTimer=null, gameOpen=false;
+function gameFnName(id){ const t=GAME_TABS.find(t=>t.id===id); return t?t.fn:null; }
+function gameCall(prefix,fnName){
+  const f = window[prefix+fnName];
+  if(typeof f!=='function') return undefined;
+  try{ return f(); }catch(e){ console.warn('games:'+prefix+fnName, e); }
+}
+function gameShowTab(id){
+  const page=document.getElementById('gamePage'); if(!page) return;
+  const prev=gameFnName(gameTab);
+  if(prev) gameCall('stop',prev);
+  if(gameTickTimer){ clearInterval(gameTickTimer); gameTickTimer=null; }
+  gameTab=id;
+  const name=gameFnName(id);
+  [...document.getElementById('gtabs').children].forEach(b=>b.classList.toggle('on',b.dataset.id===id));
+  let html='';
+  try{ html = window['render'+name](); }
+  catch(e){ console.warn('games:render'+name,e); html='<div style="padding:24px;font-size:19px">This game could not load. Tell James.</div>'; }
+  page.innerHTML=html; page.scrollTop=0;
+  gameCall('init',name);
+  gameTickTimer=setInterval(()=>{ if(gameOpen) gameCall('tick',name); },5000);
+}
+function openGames(){
+  document.getElementById('book').classList.remove('on');
+  document.getElementById('games').classList.add('on');
+  gameOpen=true; gameShowTab(gameTab);
+}
+function closeGames(){
+  if(!gameOpen) return;
+  gameOpen=false;
+  document.getElementById('games').classList.remove('on');
+  const name=gameFnName(gameTab); if(name) gameCall('stop',name);
+  if(gameTickTimer){ clearInterval(gameTickTimer); gameTickTimer=null; }
+}
+(function buildGamesShell(){
+  const tabs=document.getElementById('gtabs');
+  GAME_TABS.forEach(t=>{ const b=document.createElement('button'); b.type='button'; b.textContent=t.label; b.dataset.id=t.id; b.onclick=()=>gameShowTab(t.id); tabs.appendChild(b); });
+  document.getElementById('openGames').onclick=openGames;
+  document.getElementById('closeGames').onclick=closeGames;
+  document.getElementById('games').addEventListener('click',e=>{ if(e.target.id==='games') closeGames(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeGames(); });
+})();
+
+/* auto-rejoin as the remembered player (runs after everything above is defined) */
 if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
 </script>
+
+<!-- pixel art, handbook copy and game modules; all resolved at click time -->
+<script src="art.js"></script>
+<script src="handbook.js"></script>
+<script src="game-hunt.js"></script>
+<script src="game-race.js"></script>
+<script src="game-trivia.js"></script>
+<script src="game-arcade.js"></script>
 </body>
 </html>
