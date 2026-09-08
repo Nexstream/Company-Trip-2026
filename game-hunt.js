@@ -39,6 +39,9 @@ let huntFilterMode = "all";   // all | unclaimed | claimed
 let huntPending = new Set();  // target ids with an in-flight write
 let huntErr = {};             // target id -> inline error string (transient)
 let huntLoadFailed = false;
+let huntProofInput = null;    // one shared hidden <input type=file>
+let huntProofFor = null;      // challenge waiting on that picker
+let huntBusyNote = {};        // target id -> "Shrinking…" / "Uploading…"
 
 function huntTotalsByPlayer(){
   const map = {};
@@ -95,6 +98,18 @@ function renderHunt(){
     .hunt-who img{width:18px;height:18px;image-rendering:pixelated;border:1px solid var(--ink);border-radius:0;margin-right:-6px}
     .hunt-who .hunt-whocount{font-size:15px;color:#6b5f45;margin-left:10px}
     .hunt-err{font-size:15px;color:var(--red);margin-top:6px}
+    .hunt-note{font-size:15px;color:#6b5f45;margin-top:6px}
+    .hunt-proofs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .hunt-proofs button{padding:0;border:3px solid var(--ink);background:var(--paper);line-height:0;box-shadow:2px 2px 0 rgba(0,0,0,.3)}
+    .hunt-proofs button.hunt-mineproof{border-color:var(--gold2)}
+    .hunt-proofs img{width:54px;height:54px;object-fit:cover;display:block}
+    .hunt-proofs .hunt-nophoto{font-size:15px;color:#8a7c5c;align-self:center}
+    .hunt-lightbox{position:fixed;inset:0;z-index:1300;background:rgba(8,14,28,.92);display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:10px;padding:16px}
+    .hunt-lightbox img{max-width:100%;max-height:74vh;border:4px solid var(--gold);background:var(--navy2)}
+    .hunt-lightbox .hunt-lbcap{font-family:'Press Start 2P',monospace;font-size:9px;color:var(--gold);text-align:center;line-height:1.6}
+    .hunt-lightbox button{font-family:'Press Start 2P',monospace;font-size:9px;padding:12px 16px;min-height:44px;
+      background:var(--cream);color:var(--ink);border:3px solid var(--ink)}
     .hunt-netnote{font-size:15px;color:#6b5f45;text-align:center;margin:6px 0 12px}
   </style>
   <div class="hunt-wrap">
@@ -156,10 +171,22 @@ function huntWhoHtml(target){
   return faces+extra;
 }
 
+/* Thumbnails of everyone's photo proof for this challenge. */
+function huntProofsHtml(target){
+  const withPhoto = huntClaimsFor(target).filter(c=>c.proof_url);
+  if(!withPhoto.length) return '';
+  return `<div class="hunt-proofs">`+withPhoto.map(c=>
+    `<button type="button" class="hunt-viewproof${c.player_id===me.id?' hunt-mineproof':''}" data-url="${esc(c.proof_url)}" data-who="${esc(c.player_name||'?')}" title="${esc(c.player_name||'?')}">
+       <img src="${esc(c.proof_url)}" alt="Proof from ${esc(c.player_name||'?')}" loading="lazy">
+     </button>`).join('')+`</div>`;
+}
+
 function huntRenderRow(ch){
   const mine = huntMineFor(ch.id);
   const busy = huntPending.has(ch.id);
   const err = huntErr[ch.id];
+  const note = huntBusyNote[ch.id];
+  const label = busy ? (note||'…') : (mine?'UNCLAIM':'CLAIM 📷');
   return `
   <div class="hunt-card ${mine?'hunt-done':''}" data-target="${ch.id}">
     <div class="hunt-row-top">
@@ -169,9 +196,11 @@ function huntRenderRow(ch){
         <div class="hunt-desc">${esc(ch.d)}</div>
         <div class="hunt-meta">
           <span class="hunt-pts">${ch.pts} PTS</span>
-          <button class="hunt-claimbtn hunt-claim ${mine?'hunt-on':''}" data-target="${ch.id}" ${busy?'disabled':''}>${busy?'…':(mine?'UNCLAIM':'CLAIM')}</button>
+          <button class="hunt-claimbtn hunt-claim ${mine?'hunt-on':''}" data-target="${ch.id}" ${busy?'disabled':''}>${esc(label)}</button>
         </div>
         <div class="hunt-who">${huntWhoHtml(ch.id)}</div>
+        ${huntProofsHtml(ch.id)}
+        ${mine&&!mine.proof_url?'<div class="hunt-note">Claimed before photos were required — no proof on file.</div>':''}
         ${err?`<div class="hunt-err">${esc(err)}</div>`:''}
       </div>
     </div>
@@ -206,26 +235,72 @@ async function huntFetchClaims(){
   }
 }
 
-async function huntClaim(ch){
+/* A claim needs a photo, so CLAIM opens the picker; the claim itself is written
+   in huntClaim() once a file comes back. No `capture` attribute — that would
+   force the camera and rule out a shot already in the camera roll. */
+function huntAskProof(ch){
   if(huntPending.has(ch.id)) return;
+  if(!huntProofInput) return;
+  huntProofFor = ch.id;
+  huntProofInput.value = '';        // so re-picking the same file still fires change
+  huntProofInput.click();
+}
+
+async function huntClaim(ch, file){
+  if(huntPending.has(ch.id)) return;
+  if(!file){ huntErr[ch.id] = "A photo is needed to claim this one."; huntRenderAll(); huntWireList(); return; }
   huntPending.add(ch.id);
-  huntClaims.push({player_id:me.id, player_name:me.name, av:me.av, kind:"hunt", target:ch.id, points:ch.pts, ts:Date.now()});
   huntErr[ch.id] = null;
+  huntBusyNote[ch.id] = 'SHRINKING';
+  huntRenderAll(); huntWireList();
+
+  let proofUrl;
+  try{
+    const blob = await shrinkImage(file);
+    huntBusyNote[ch.id] = 'UPLOADING';
+    huntRenderAll(); huntWireList();
+    const name = `hunt/${ch.id}/${me.id}-${Date.now()}.jpg`;
+    proofUrl = await sbUpload('proofs', name, blob);
+  }catch(e){
+    console.warn(e);
+    huntErr[ch.id] = "Couldn't upload the photo — try again";
+    huntPending.delete(ch.id); delete huntBusyNote[ch.id];
+    huntRenderAll(); huntWireList();
+    return;
+  }
+
+  huntBusyNote[ch.id] = 'SAVING';
+  const row = {player_id:me.id, player_name:me.name, av:me.av, kind:"hunt", target:ch.id, points:ch.pts, ts:Date.now(), proof_url:proofUrl};
+  huntClaims.push(row);
   huntRenderAll(); huntWireList();
   try{
     await sb("quest_claims?on_conflict=player_id,kind,target", {
       method:"POST",
       headers:{Prefer:"resolution=merge-duplicates,return=minimal"},
-      body: JSON.stringify({player_id:me.id, player_name:me.name, av:me.av, kind:"hunt", target:ch.id, points:ch.pts, ts:Date.now()})
+      body: JSON.stringify(row)
     });
   }catch(e){
     console.warn(e);
     huntClaims = huntClaims.filter(c=>!(c.player_id===me.id && c.target===ch.id));
     huntErr[ch.id] = "Couldn't save — try again";
   }
-  huntPending.delete(ch.id);
+  huntPending.delete(ch.id); delete huntBusyNote[ch.id];
   huntRenderAll(); huntWireList();
 }
+
+/* Full-size view of one proof. Lives on <body> so it clears the games overlay. */
+function huntOpenProof(url, who){
+  huntCloseProof();
+  const box = document.createElement('div');
+  box.className = 'hunt-lightbox';
+  box.id = 'huntLightbox';
+  box.innerHTML = `<img src="${esc(url)}" alt="Proof from ${esc(who)}">
+    <div class="hunt-lbcap">${esc(who)}</div>
+    <button type="button">CLOSE</button>`;
+  box.onclick = e=>{ if(e.target===box || e.target.tagName==='BUTTON') huntCloseProof(); };
+  document.body.appendChild(box);
+}
+function huntCloseProof(){ document.getElementById('huntLightbox')?.remove(); }
 
 async function huntUnclaim(ch){
   if(huntPending.has(ch.id)) return;
@@ -254,14 +329,34 @@ function huntWireList(){
     btn.onclick = ()=>{
       const ch = HUNT_BY_ID[btn.dataset.target];
       if(!ch) return;
-      if(huntMineFor(ch.id)) huntUnclaim(ch); else huntClaim(ch);
+      if(huntMineFor(ch.id)) huntUnclaim(ch); else huntAskProof(ch);
     };
   });
+  root.querySelectorAll('.hunt-viewproof').forEach(btn=>{
+    btn.onclick = ()=>huntOpenProof(btn.dataset.url, btn.dataset.who);
+  });
+}
+
+function huntBuildProofInput(){
+  if(huntProofInput) return;
+  const i = document.createElement('input');
+  i.type = 'file';
+  i.accept = 'image/*';
+  i.style.display = 'none';
+  i.onchange = ()=>{
+    const file = i.files && i.files[0];
+    const ch = HUNT_BY_ID[huntProofFor];
+    huntProofFor = null;
+    if(file && ch) huntClaim(ch, file);
+  };
+  document.body.appendChild(i);
+  huntProofInput = i;
 }
 
 function initHunt(){
   const root = document.getElementById('gamePage');
   if(!root) return;
+  huntBuildProofInput();
   const filters = root.querySelector('#huntFilters');
   if(filters){
     filters.querySelectorAll('button').forEach(b=>{
@@ -284,4 +379,7 @@ function tickHunt(){
 
 function stopHunt(){
   huntErr = {};
+  huntBusyNote = {};
+  huntProofFor = null;
+  huntCloseProof();
 }
