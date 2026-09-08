@@ -22,9 +22,11 @@ const DEER_SENBEI_ROWS = [
   "........","..YYYY..",".YYYYYY.",".YYBYYY.",".YYYYYY.",".YYYYYY.","..YYYY..","........"
 ];
 const DEER_PICK_PAL = { R:"#c8442b", Y:"#c9a24a", B:"#8e6f2a" };
-// crouched traveller pose (5 rows) — reuses charPal's H/S/E/C letters
-const DEER_DUCK_ROWS = [".HHHHHH.",".HSSSSH.",".SESSES.","CCCCCCCC",".LL..LL."];
-// two-frame running legs, swapped in place of CHAR's last row while on ground
+// crouched traveller pose (5 rows) — same indices CHAR used (1,2,3,6,7), taken live
+// from the player's own charRows() so build/accessory follow the pose. Must stay 5
+// rows: arcadeDraw() sizes the sprite off rows.length*scale.
+function arcadeDuckRows(){ const r=charRows(me.av||0); return [r[1],r[2],r[3],r[6],r[7]]; }
+// two-frame running legs, swapped in place of the player sprite's last row while on ground
 const DEER_RUN_LEGS = [".LL..LL.","L....LL.",".LL....L"];
 
 const ARCADE_STATE = {
@@ -378,7 +380,7 @@ function arcadeRenderBoard(list){
     });
     box.innerHTML = h;
   });
-  root.querySelectorAll('.arcade-av[data-av]').forEach(c=>{ drawSprite(c.getContext('2d'), CHAR, charPal(+c.dataset.av), 0, 0, 1); });
+  root.querySelectorAll('.arcade-av[data-av]').forEach(c=>{ drawSprite(c.getContext('2d'), charRows(+c.dataset.av), charPal(+c.dataset.av), 0, 0, 1); });
 }
 
 /* ---------------- drawing ---------------- */
@@ -418,7 +420,7 @@ function arcadeDraw(){
     let squash = 1;
     if(p.squashT>0) squash = 1 - (p.squashT/0.14)*0.35;
     const ducking = st.ducking && p.onGround;
-    const rows = ducking ? DEER_DUCK_ROWS : arcadePlayerRows(p);
+    const rows = ducking ? arcadeDuckRows() : arcadePlayerRows(p);
     const baseH = rows.length*scale;
     const drawH = baseH*squash;
     const topY = p.footY - drawH;
@@ -432,8 +434,9 @@ function arcadeDraw(){
 }
 
 function arcadePlayerRows(p){
-  if(!p.onGround) return CHAR;
-  const rows = CHAR.slice(0, CHAR.length-1);
+  const base = charRows(me.av||0);
+  if(!p.onGround) return base;
+  const rows = base.slice(0, base.length-1);
   rows.push(DEER_RUN_LEGS[ARCADE_STATE.runFrame % DEER_RUN_LEGS.length]);
   return rows;
 }
