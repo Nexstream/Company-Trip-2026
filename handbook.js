@@ -254,6 +254,48 @@ function renderStay(){ return `
 <li>Return 4 Oct: Osaka 3:15 PM → Manila 6:40 PM (PR411) · Manila 9:15 PM → KL 1:15 AM on 5 Oct (PR529)</li>
 <li>Transit in Manila is under 3 hours each way; stay near the gate.</li>
 </ul>
+<h4 class="art-h4">${art('shopbag',22)}Checked bags</h4>
+<p>Both legs are on one ticket, so a single allowance runs KL all the way to Kansai and your bags are tagged through — you do not collect them in Manila. The number printed on your itinerary receipt is the one that counts; the coordinators hold the group booking, so ask them before paying anything at a counter.</p>
+<ul>
+<li>Published PAL economy allowances, for reference: Manila&ndash;Osaka is counted in <b>pieces</b> (most economy fares 2 bags at 23 kg each, the top fare 2 at 25 kg, the cheapest Supersaver fare none at all). KL&ndash;Manila is counted in <b>total weight</b> instead, around 30&ndash;35 kg in economy, again nothing on Supersaver.</li>
+<li>Two bags of 23 kg is the safe target to pack to. If your ticket says more, that is a bonus.</li>
+<li class="art-kv">${art('shopbag',24)}<span class="art-txt"><b>No single bag over 32 kg</b>, whatever your total allowance is. A heavier bag is repacked at the counter or refused outright — split the weight across two bags rather than argue.</span></li>
+<li>Excess weight is charged per kilo at the airport and is not cheap. Weigh bags at home, and again at the hotel before the flight back.</li>
+<li>Leave room for the way home. Souvenirs, snacks and a Don Quijote run all have to fit inside the same 32 kg per bag.</li>
+</ul>
+<h4 class="art-h4">${art('backpack',22)}Hand carry</h4>
+<ul>
+<li>One cabin bag, maximum <b>7 kg</b> and <b>56 &times; 36 &times; 23 cm</b>. It gets weighed at the KL counter.</li>
+<li>Plus one personal item: a small handbag or purse, a laptop in a case up to 45 &times; 35 &times; 20 cm, a coat, reading material, or a duty-free bag. Two things strapped or tied together still count as two.</li>
+<li>Liquids, gels and aerosols in the cabin follow airport security's 100 ml-per-container rule — bigger bottles go in the checked bag or get bought after security.</li>
+<li>Passport, medication, chargers, a change of clothes and anything valuable belong in the hand carry, not the hold.</li>
+</ul>
+<h4 class="art-h4">${art('powerbank',22)}Power banks &amp; batteries</h4>
+<p>This is the rule people actually get stopped for, and PAL enforces it.</p>
+<ul>
+<li>Power banks and spare batteries travel in the <b>cabin only</b> — never in a checked bag.</li>
+<li class="art-kv">${art('powerbank',24)}<span class="art-txt">Maximum <b>two</b> power banks, each under <b>100 Wh</b>, and the capacity must be printed on the casing in Wh or mAh. An unlabelled power bank can be taken off you at the gate.</span></li>
+<li>They may not go in the overhead bin. Keep them on you, in the seat pocket, or under the seat.</li>
+<li><b>Charging a power bank in flight is banned</b> for the whole flight. Charging your phone from one is fine, except during taxi, take-off and landing.</li>
+<li>Spare lithium batteries under 100 Wh: up to 20, with the terminals taped or each in its own pouch. Camera batteries in the 101&ndash;160 Wh range need PAL's approval and must be declared at check-in (2 maximum).</li>
+<li>Smart luggage with a built-in battery: pull the battery out and carry it in the cabin if the bag is going in the hold.</li>
+</ul>
+<h4 class="art-h4">${art('passport',22)}What not to pack</h4>
+<ul>
+<li>Vapes and e-cigarettes: cabin only, and using or recharging them on board is not allowed.</li>
+<li>Lighters, matches and torch lighters are restricted — keep them out of your checked bag and ask at check-in if you need to carry one.</li>
+<li>Perfume, hairspray and aerosols are fine in small amounts: no single container over 0.5 L, and no more than 2 L in total per person.</li>
+<li>Alcohol between 24% and 70% ABV: up to 5 L per person in retail packaging. Anything stronger than 70% is not carried at all.</li>
+<li>Never in any bag: fireworks and flares, camping stoves and fuel, paint thinner, bleach and pool chemicals, petrol-powered tools, hoverboards and e-scooters.</li>
+<li>If you are unsure about something, declare it at check-in. Undeclared dangerous goods is a criminal offence in the Philippines — a fine of PHP 100,000 to 500,000, or jail — not just a confiscation.</li>
+</ul>
+<h4 class="art-h4"><img class="art-ic" src="${ICON_URL.plane}" alt="" style="width:22px;height:22px">In Manila, and at the gate</h4>
+<ul>
+<li>Both connections are international to international, so you stay airside: no Philippine immigration, no baggage claim, no re-check.</li>
+<li>If the connection involves a terminal change, PAL runs a free shuttle for single-ticket passengers — follow the signs to the transfer desk rather than leaving the building.</li>
+<li>Be at the KL counter early. Group check-in with this many bags takes longer than you think, and counters close well before departure.</li>
+<li>Inflatable footrests, knee defenders and similar seat gadgets are not allowed on PAL flights.</li>
+</ul>
 <h4 class="art-h4"><img class="art-ic" src="${ICON_URL.hotel}" alt="" style="width:22px;height:22px">Hotels</h4>
 <ul>
 <li>29 Sep – 1 Oct · Kyoto: Rakuten STAY URBAN Kyoto Shijo Omiya (2 nights)</li>
