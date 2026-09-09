@@ -248,6 +248,90 @@ function renderMust(){ return `
 </ul>`; }
 
 /* =========================================================
+   SEAT_PLAN — flight seating chart data, from the coordinator's
+   spreadsheet. Each row is [rowNo, [leftPairName1,leftPairName2],
+   [rightPairName1,rightPairName2]], left/right split by the aisle.
+   There are no seat letters in the source — only pairing and order
+   within a pair, which is preserved exactly as transcribed. `null`
+   means an empty seat with nobody from our group in it.
+   Prefixed SEAT_/seat* — see CLAUDE.md, no module scope in this repo.
+   ========================================================= */
+const SEAT_PLAN = [
+  { code:"PR530", from:"Kuala Lumpur", to:"Manila", when:"2:15 AM 29 Sep", rows:[
+    [48, ["Lena","Kelvin"],      ["Kexin","Alex"]],
+    [49, ["Snitco","Chris"],     ["Chloe","James"]],
+    [50, ["Christine","Zack"],   ["Chai Mun","Nic"]],
+    [51, ["Wenhan","Alvan"],     ["Ramona","Gomathi"]],
+    [52, [null,null],            ["Alvin","Ah Keat"]],
+    [53, ["Manik","Rex"],        [null,"Diviya"]],
+  ]},
+  { code:"PR412", from:"Manila", to:"Osaka (Kansai)", when:"9:10 AM 29 Sep", rows:[
+    [39, ["Lena","Kelvin"],      ["Kexin","Alex"]],
+    [40, ["Snitco","Chris"],     ["Chloe","James"]],
+    [41, ["Christine","Zack"],   ["Chai Mun","Nic"]],
+    [42, ["Wenhan","Alvan"],     ["Ramona","Gomathi"]],
+    [43, ["Manik","Rex"],        ["Alvin","Ah Keat"]],
+    [44, [null,null],            [null,"Diviya"]],
+  ]},
+  { code:"PR411", from:"Osaka", to:"Manila", when:"3:15 PM 4 Oct", rows:[
+    [51, ["Lena","Kelvin"],      ["Kexin","Alex"]],
+    [52, ["Snitco","Chris"],     ["Chloe","James"]],
+    [53, ["Christine","Zack"],   ["Chai Mun","Nic"]],
+    [54, ["Wenhan","Alvan"],     ["Ramona","Gomathi"]],
+    [55, ["Manik","Rex"],        ["Alvin","Ah Keat"]],
+    [56, [null,null],            [null,"Diviya"]],
+  ]},
+  { code:"PR529", from:"Manila", to:"Kuala Lumpur", when:"9:15 PM 4 Oct (arrives KL 1:15 AM 5 Oct)", rows:[
+    [62, [null,null],            ["Chai Mun","Nic"]],
+    [63, [null,null],            ["Ramona","Gomathi"]],
+    [64, [null,null],            ["Alvin","Ah Keat"]],
+    [65, ["Lena","Kelvin"],      ["Kexin","Alex"]],
+    [66, ["Snitco","Chris"],     ["Chloe","James"]],
+    [67, ["Christine","Zack"],   [null,"Diviya"]],
+    [68, ["Wenhan","Alvan"],     ["Rex","Manik"]], // intentional per coordinator's sheet: Manik/Rex swap from left (flights 1-3) to right AND flip order here — not a transcription slip, do not "fix" back to ["Manik","Rex"] on the left
+  ]},
+];
+
+/* seatPlanHtml() — renders SEAT_PLAN as a mobile-first grid per flight:
+   a row-number badge, the left pair, a dashed aisle gap, the right pair.
+   Highlights the seat matching me.name (trim + case-insensitive, exact
+   full-string match only) so a player can spot their own seat at a glance;
+   no match is a normal, silent no-op. */
+function seatCellHtml(name){
+  if(!name) return `<span class="seatcell seatempty">—</span>`;
+  let mine=false;
+  try{
+    const myName=(typeof me!=='undefined' && me && me.name) ? String(me.name).trim().toLowerCase() : '';
+    const chartName=String(name).trim().toLowerCase();
+    /* exact match, or myName is the chart's short form plus more, separated
+       by a real word boundary (a space) — "James Ong" matches "James",
+       "Chai Mun L." matches "Chai Mun". A bare startsWith would be unsafe:
+       this roster has both Chris/Christine and Alvan/Alvin, and "Christine"
+       must never match the chart's separate "Chris" entry. */
+    if(myName && (myName===chartName || myName.startsWith(chartName+' '))) mine=true;
+  }catch(e){ mine=false; }
+  return `<span class="seatcell${mine?' seatme':''}">${esc(name)}</span>`;
+}
+function seatFlightHtml(f){
+  return `<div class="seatflight">
+    <div class="seatflighthead"><span class="seatcode">${esc(f.code)}</span> <span class="seatroute">${esc(f.from)} → ${esc(f.to)}</span> <span class="seatwhen">${esc(f.when)}</span></div>
+    <div class="seatgrid">
+      ${f.rows.map(([no,l,r])=>`<div class="seatrow">
+        <span class="seatrowno">${no}</span>
+        <span class="seatpair">${seatCellHtml(l[0])}${seatCellHtml(l[1])}</span>
+        <span class="seataisle"></span>
+        <span class="seatpair">${seatCellHtml(r[0])}${seatCellHtml(r[1])}</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+function seatPlanHtml(){
+  return `<h4 class="art-h4"><img class="art-ic" src="${ICON_URL.plane}" alt="" style="width:22px;height:22px">Seats</h4>
+  <p class="ds">Each pair sits together, side by side; the two pairs are split by the aisle. Your seat is highlighted if it matches the name you joined with.</p>
+  <div class="seatplan">${SEAT_PLAN.map(seatFlightHtml).join('')}</div>`;
+}
+
+/* =========================================================
    ROOM ASSIGNMENTS — who shares with whom, per hotel stay.
    Transcribed from the coordinators' rooming sheet. Rooms are
    allocated per stay, not per night, which is why this is keyed
@@ -315,6 +399,7 @@ function renderStay(){ return `
 <li>Return 4 Oct: Osaka 3:15 PM → Manila 6:40 PM (PR411) · Manila 9:15 PM → KL 1:15 AM on 5 Oct (PR529)</li>
 <li>Transit in Manila is under 3 hours each way; stay near the gate.</li>
 </ul>
+${seatPlanHtml()}
 <h4 class="art-h4">${art('shopbag',22)}Checked bags</h4>
 <p>Both legs are on one ticket, so a single allowance runs KL all the way to Kansai and your bags are tagged through — you do not collect them in Manila. The number printed on your itinerary receipt is the one that counts; the coordinators hold the group booking, so ask them before paying anything at a counter.</p>
 <ul>
