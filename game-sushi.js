@@ -248,91 +248,15 @@ function sushiLayout(rid, step){
 }
 
 /* =========================================================
-   REALTIME — hand-rolled Phoenix channel over one WebSocket
-   Kept dependency-free on purpose: no CDN, no build, same as the rest of the
-   app. Only two message shapes travel on it, both ephemeral.
+   REALTIME — one Broadcast channel, built by rtChannel() in rt.js
+   The hand-rolled Phoenix-over-WebSocket client used to live here; it moved
+   to rt.js when Takoyaki Flip needed the same thing, so both games share one
+   implementation instead of two drifting copies. The object below has the
+   exact shape this file always used (status/open/broadcast/close plus the
+   joined/wanted/_connect internals tickSushi() pokes), just built by a call.
+   Only two message shapes travel on it, both ephemeral: "start" and "state".
    ========================================================= */
-const sushiRT = {
-  ws: null,
-  ref: 0,
-  joined: false,
-  tries: 0,
-  hbTimer: null,
-  reTimer: null,
-  onMsg: null,
-  wanted: false,
-
-  status(){
-    if(this.joined) return "live";
-    if(this.ws && this.ws.readyState === 0) return "connecting";
-    return this.wanted ? "offline" : "idle";
-  },
-  open(onMsg){
-    this.onMsg = onMsg;
-    this.wanted = true;
-    this._connect();
-  },
-  _url(){
-    return SUPABASE_URL.replace(/^http/, "ws")
-      + "/realtime/v1/websocket?apikey=" + encodeURIComponent(SUPABASE_ANON_KEY) + "&vsn=1.0.0";
-  },
-  _connect(){
-    if(!this.wanted) return;
-    if(this.ws && (this.ws.readyState === 0 || this.ws.readyState === 1)) return;
-    let ws;
-    try{ ws = new WebSocket(this._url()); }
-    catch(e){ console.warn("sushi: websocket unavailable", e); return this._retry(); }
-    this.ws = ws;
-    this.joined = false;
-
-    ws.onopen = ()=>{
-      this.tries = 0;
-      this._send({ topic: SUSHI_TOPIC, event: "phx_join", payload: { config: {
-        broadcast: { self: false, ack: false },   // we apply our own taps locally
-        presence:  { key: "" },                   // presence unused: state msgs carry it
-        private:   false                          // public channel — no RLS involved
-      }}});
-      this.hbTimer = setInterval(()=>this._send({ topic:"phoenix", event:"heartbeat", payload:{} }), 25000);
-    };
-    ws.onmessage = (ev)=>{
-      let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
-      if(m.event === "phx_reply" && m.topic === SUSHI_TOPIC){
-        if(m.payload && m.payload.status === "ok") this.joined = true;
-        else console.warn("sushi: join refused", m.payload);
-        return;
-      }
-      if(m.event === "phx_error" || m.event === "phx_close"){ this.joined = false; return; }
-      if(m.event === "broadcast" && m.payload && this.onMsg){
-        try{ this.onMsg(m.payload.event, m.payload.payload); }catch(e){ console.warn("sushi: bad msg", e); }
-      }
-    };
-    ws.onclose = ()=>{ this.joined = false; this._clearHb(); this._retry(); };
-    ws.onerror  = ()=>{ /* onclose follows and drives the retry */ };
-  },
-  _retry(){
-    if(!this.wanted || this.reTimer) return;
-    const wait = Math.min(16000, 1000 * Math.pow(2, Math.min(4, this.tries++)));
-    this.reTimer = setTimeout(()=>{ this.reTimer = null; this._connect(); }, wait);
-  },
-  _clearHb(){ if(this.hbTimer){ clearInterval(this.hbTimer); this.hbTimer = null; } },
-  _send(msg){
-    if(!this.ws || this.ws.readyState !== 1) return false;
-    msg.ref = String(++this.ref);
-    try{ this.ws.send(JSON.stringify(msg)); return true; }
-    catch(e){ return false; }
-  },
-  broadcast(event, payload){
-    if(!this.joined) return false;
-    return this._send({ topic: SUSHI_TOPIC, event: "broadcast",
-      payload: { type:"broadcast", event, payload } });
-  },
-  close(){
-    this.wanted = false; this.joined = false; this._clearHb();
-    if(this.reTimer){ clearTimeout(this.reTimer); this.reTimer = null; }
-    if(this.ws){ try{ this.ws.close(); }catch(e){} this.ws = null; }
-    this.onMsg = null;
-  },
-};
+const sushiRT = rtChannel(SUSHI_TOPIC, "sushi");
 
 /* ---------- adopting a round someone else started ----------
    Every guard here is about a message that cannot be trusted to be timely,
