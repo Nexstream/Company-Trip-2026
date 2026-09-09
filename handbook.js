@@ -247,6 +247,67 @@ function renderMust(){ return `
 <li class="art-kv">${art('takoyaki',24)}${art('okonomiyaki',24)}${art('porkbun',24)}<span class="art-txt">Osaka: takoyaki, okonomiyaki, kushikatsu (never double-dip the sauce), 551 Horai pork buns at the station.</span></li>
 </ul>`; }
 
+/* =========================================================
+   ROOM ASSIGNMENTS — who shares with whom, per hotel stay.
+   Transcribed from the coordinators' rooming sheet. Rooms are
+   allocated per stay, not per night, which is why this is keyed
+   by hotel rather than by DAYS index. 21 people in every stay —
+   if that stops adding up, the sheet changed and this did not.
+   Grouped by room type so one label covers its identical rooms,
+   the way the sheet's merged cells do.
+   ========================================================= */
+const STAY_ROOMS = [
+  { city:"Kyoto", nights:"29 Sep – 1 Oct", n:2, hotel:"Rakuten STAY URBAN Kyoto Shijo Omiya",
+    types:[
+      {type:"Triple Room", rooms:[["Ramona","Gomathi","Diviya"]]},
+      {type:"Standard Twin Room", rooms:[["Lena","Kelvin"],["Snitco","Chris"],["Christine","Zack"],["Wenhan","Alvan"],["Manik","Rex"],["Kexin","Alex"],["Chloe","James"],["Chai Mun","Nic"],["Alvin","Ah Keat"]]},
+    ]},
+  { city:"Arima Onsen", nights:"1 – 2 Oct", n:1, hotel:"The Gran Resort Princess Arima",
+    types:[
+      {type:"Standard Japanese Style Room (8-jo)", rooms:[["Ramona","Gomathi","Diviya"]]},
+      {type:"Designers Room", rooms:[["Lena","Kelvin"],["Manik","Rex"]]},
+      {type:"Standard Japanese Style Room (14-jo)", rooms:[["Snitco","Chris"],["Christine","Zack"],["Wenhan","Alvan"],["Kexin","Alex"],["Chloe","James"],["Chai Mun","Nic"],["Alvin","Ah Keat"]]},
+    ]},
+  { city:"Osaka", nights:"2 – 4 Oct", n:2, hotel:"WAYFARER Shinsaibashi",
+    types:[
+      {type:"Essential Double Room — 1 double bed", rooms:[["Lena","Kelvin"],["Snitco","Chris"],["Christine","Zack"],["Wenhan","Alvan"],["Manik","Rex"],["Kexin","Alex"],["Chloe","James"],["Chai Mun","Nic"],["Alvin","Ah Keat"],["Diviya","Gomathi"],["Ramona"]]},
+    ]},
+];
+
+/* The name typed on the title screen, or '' — used only to highlight your
+   own room. Matching is exact (bar case): a fuzzy match would light up
+   somebody else's room, which is worse than lighting up none. */
+function stayMyName(){
+  try{ return me && me.name ? String(me.name).trim() : ''; }catch(e){ return ''; }
+}
+
+/* The handbook is only reachable from the in-game HUD, so anyone reading this
+   has certainly joined already. That makes a name absent from the sheet the
+   only real reason for seeing no highlight — worth saying, rather than leaving
+   them to wonder whether the feature is broken. */
+function stayOnSheet(lower){
+  return !!lower && STAY_ROOMS.some(s=>s.types.some(t=>t.rooms.some(r=>r.some(p=>p.toLowerCase()===lower))));
+}
+
+function stayRoomsHtml(){
+  const raw = stayMyName(), mine = raw.toLowerCase();
+  const miss = raw && !stayOnSheet(mine)
+    ? `<div class="warn">No room is highlighted below — <b>${esc(raw)}</b> is not a name on the rooming sheet. It lists the first names the coordinators had, so ask one of them if yours should be on it.</div>`
+    : '';
+  return miss + STAY_ROOMS.map(s=>`
+<div class="stayblk">
+  <div class="stayhd"><span class="badge">${esc(s.city)}</span>${esc(s.nights)}<span class="stayn"> · ${s.n} night${s.n>1?'s':''}</span><br>${esc(s.hotel)}</div>
+  ${s.types.map(t=>{
+    const n=t.rooms.length;
+    return `<div class="staytype">${esc(t.type)} <span class="ds">· ${n} room${n>1?'s':''}</span></div>
+  <div class="rooms">${t.rooms.map(r=>{
+      const isMine = !!mine && r.some(p=>p.toLowerCase()===mine);
+      return `<div class="rm${isMine?' me':''}">${r.map(p=>`<span class="rmp${mine&&p.toLowerCase()===mine?' you':''}">${esc(p)}</span>`).join('')}${r.length===1?'<span class="rms">sole use</span>':''}${isMine?'<span class="yb">You</span>':''}</div>`;
+    }).join('')}</div>`;
+  }).join('')}
+</div>`).join('');
+}
+
 function renderStay(){ return `
 <h4 class="art-h4"><img class="art-ic" src="${ICON_URL.plane}" alt="" style="width:22px;height:22px">Flights — Philippine Airlines via Manila</h4>
 <ul>
@@ -299,9 +360,13 @@ function renderStay(){ return `
 <h4 class="art-h4"><img class="art-ic" src="${ICON_URL.hotel}" alt="" style="width:22px;height:22px">Hotels</h4>
 <ul>
 <li>29 Sep – 1 Oct · Kyoto: Rakuten STAY URBAN Kyoto Shijo Omiya (2 nights)</li>
-<li>1 – 2 Oct · Arima Onsen: listed as Arima Kirari on the hotel slide and The Gran Resort Princess Arima in the itinerary — check with coordinators (1 night)</li>
+<li>1 – 2 Oct · Arima Onsen: The Gran Resort Princess Arima (1 night)</li>
 <li>2 – 4 Oct · Osaka: WAYFARER Shinsaibashi (2 nights)</li>
 </ul>
+<h4 class="art-h4"><img class="art-ic" src="${ICON_URL.hotel}" alt="" style="width:22px;height:22px">Room assignments</h4>
+<p>Same room list for every night of a stay. Your own room is outlined in red.</p>
+${stayRoomsHtml()}
+<div class="warn">Swaps happen — if yours changed, ask a coordinator rather than trusting this page.</div>
 <h4>Meals</h4>
 <ul>
 <li>Company-arranged: breakfasts, most dinners, flight meals, and the Arima kaiseki dinner.</li>
@@ -389,7 +454,7 @@ const SPOT_INFO = {
   arimaH: {
     tag:"Kobe", blurb:"Arima Onsen, tucked behind Mt Rokko, is one of the three oldest hot springs in Japan and gets a mention in eighth-century chronicles. Two waters surface here: kinsen, the rust-brown \"gold\" iron-and-salt water, and ginsen, the clear carbonated \"silver\" water.",
     doing:["Try both waters — the hotel bath plus a public bath if there is time.","Yumotozaka, the slope of shops, sells tansan senbei carbonated crackers baked in front of you and best eaten warm.","The free foot bath (ashiyu) beside Kin-no-yu costs nothing and is open to anyone.","Nene Bridge and the small red Taiko Bridge over the gorge are the town's two photo spots."],
-    know:["Wash thoroughly at the seated showers before getting in. Swimsuits are not worn.","Your small towel never touches the water — fold it on your head or leave it at the side.","Tattoos: ask the front desk first. Many places ask you to cover them or book a private bath.","The itinerary lists two possible hotels — Arima Kirari and The Gran Resort Princess Arima. Confirm with a coordinator.","Steep lanes, and the town is small enough to walk end to end in 20 minutes."],
+    know:["Wash thoroughly at the seated showers before getting in. Swimsuits are not worn.","Your small towel never touches the water — fold it on your head or leave it at the side.","Tattoos: ask the front desk first. Many places ask you to cover them or book a private bath.","We are at The Gran Resort Princess Arima — the Arima Kirari name on the old hotel slide is out of date.","Steep lanes, and the town is small enough to walk end to end in 20 minutes."],
     near:[["Kin-no-yu","5 min walk","The gold-water public bath, around ¥800, with the free foot bath outside."],["Gin-no-yu","8 min walk","The clear carbonated bath; quieter than Kin-no-yu."],["Tosen Jinja","5 min walk","The town's hot-spring shrine, up a short flight of steps."],["Arima Toys & Automata Museum","6 min walk","Wind-up toys and automata over several floors — better than it sounds."]]
   },
   ropeway: {
