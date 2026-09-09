@@ -307,6 +307,19 @@
   .kon .k{border:3px solid var(--ink); padding:10px 12px; background:var(--cream)}
   .kon .k .kn{font-family:'Press Start 2P',monospace; font-size:9px; margin-bottom:6px}
   .kon .k ul{margin-left:18px; font-size:19px}
+  /* room assignments (Flights & hotels tab) */
+  .stayblk{margin:12px 0 20px}
+  .stayhd{font-family:'Press Start 2P',monospace; font-size:9px; line-height:1.9; border-bottom:3px solid var(--ink); padding-bottom:8px; margin-bottom:4px}
+  .stayhd .stayn{color:#6b5f45}
+  .staytype{font-size:18px; color:#6b5f45; margin:12px 0 6px}
+  .rooms{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px}
+  .rm{border:3px solid var(--ink); background:var(--cream); padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px}
+  .rm.me{border-color:var(--red); background:#fff3d6}
+  .rm .rmp{font-size:19px}
+  .rm .rmp+.rmp::before{content:"\00b7"; margin-right:8px; color:#6b5f45}
+  .rm .rmp.you{color:var(--red)}
+  .rm .rms{font-size:17px; color:#6b5f45; font-style:italic}
+  .rm .yb{font-family:'Press Start 2P',monospace; font-size:8px; background:var(--red); color:#fff; padding:2px 5px; margin-left:auto}
   .badge{display:inline-block; font-family:'Press Start 2P',monospace; font-size:8px; padding:3px 6px; background:var(--gold); color:var(--ink); margin-right:6px}
   .warn{background:#fff3d6; border:3px solid var(--gold2); padding:10px 12px; margin:10px 0; max-width:70ch}
   .seatplan{margin-bottom:14px}
@@ -575,7 +588,7 @@ const DAYS = [
     ["8:30 AM","Hotel breakfast, check out Kyoto hotel",""],
     ["10:00 AM","Inamori Library","","inamori"],
     ["1:30 PM","Kobe Chinatown (Nankin-machi)","Lunch free & easy","nankin"],
-    ["3:30 PM","Check in – Arima Onsen hotel","Deck lists both Arima Kirari and The Gran Resort Princess Arima — confirm with coordinators","arimaH"],
+    ["3:30 PM","Check in – The Gran Resort Princess Arima","Room list is in Flights & hotels","arimaH"],
     ["4:00 PM","Free & easy at Arima Onsen","Nene Bridge · Yumotozaka · Kin-no-yu & Gin-no-yu hot springs"],
     ["7:00 PM","Hotel kaiseki dinner","Company-arranged"]]},
   {d:"2026-10-02", label:"Day 4", title:"Arima Onsen → Nara → Osaka", ev:[
@@ -1435,14 +1448,14 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      keep serving a stale module after index.html has updated, which looks exactly
      like "the new feature didn't ship". Bump it on every deploy that changes a
      module. -->
-<script src="art.js?v=20260909d"></script>
-<script src="checklist.js?v=20260909d"></script>
-<script src="handbook.js?v=20260909e"></script>
-<script src="game-hunt.js?v=20260909d"></script>
-<script src="game-race.js?v=20260909d"></script>
-<script src="game-trivia.js?v=20260909d"></script>
-<script src="game-sushi.js?v=20260909d"></script>
-<script src="chat.js?v=20260909d"></script>
-<script src="link.js?v=20260909d"></script>
+<script src="art.js?v=20260909e"></script>
+<script src="checklist.js?v=20260909e"></script>
+<script src="handbook.js?v=20260909f"></script>
+<script src="game-hunt.js?v=20260909e"></script>
+<script src="game-race.js?v=20260909e"></script>
+<script src="game-trivia.js?v=20260909e"></script>
+<script src="game-sushi.js?v=20260909e"></script>
+<script src="chat.js?v=20260909e"></script>
+<script src="link.js?v=20260909e"></script>
 </body>
 </html>
