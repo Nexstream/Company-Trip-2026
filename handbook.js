@@ -274,16 +274,27 @@ const STAY_ROOMS = [
     ]},
 ];
 
-/* The name typed on the title screen, lowercased, or '' — used only to
-   highlight your own room. An exact match is deliberate: a fuzzy one
-   would light up the wrong room, which is worse than lighting up none. */
+/* The name typed on the title screen, or '' — used only to highlight your
+   own room. Matching is exact (bar case): a fuzzy match would light up
+   somebody else's room, which is worse than lighting up none. */
 function stayMyName(){
-  try{ return me && me.name ? String(me.name).trim().toLowerCase() : ''; }catch(e){ return ''; }
+  try{ return me && me.name ? String(me.name).trim() : ''; }catch(e){ return ''; }
+}
+
+/* The handbook is only reachable from the in-game HUD, so anyone reading this
+   has certainly joined already. That makes a name absent from the sheet the
+   only real reason for seeing no highlight — worth saying, rather than leaving
+   them to wonder whether the feature is broken. */
+function stayOnSheet(lower){
+  return !!lower && STAY_ROOMS.some(s=>s.types.some(t=>t.rooms.some(r=>r.some(p=>p.toLowerCase()===lower))));
 }
 
 function stayRoomsHtml(){
-  const mine = stayMyName();
-  return STAY_ROOMS.map(s=>`
+  const raw = stayMyName(), mine = raw.toLowerCase();
+  const miss = raw && !stayOnSheet(mine)
+    ? `<div class="warn">No room is highlighted below — <b>${esc(raw)}</b> is not a name on the rooming sheet. It lists the first names the coordinators had, so ask one of them if yours should be on it.</div>`
+    : '';
+  return miss + STAY_ROOMS.map(s=>`
 <div class="stayblk">
   <div class="stayhd"><span class="badge">${esc(s.city)}</span>${esc(s.nights)}<span class="stayn"> · ${s.n} night${s.n>1?'s':''}</span><br>${esc(s.hotel)}</div>
   ${s.types.map(t=>{
@@ -291,7 +302,7 @@ function stayRoomsHtml(){
     return `<div class="staytype">${esc(t.type)} <span class="ds">· ${n} room${n>1?'s':''}</span></div>
   <div class="rooms">${t.rooms.map(r=>{
       const isMine = !!mine && r.some(p=>p.toLowerCase()===mine);
-      return `<div class="rm${isMine?' me':''}">${r.map(p=>`<span class="rmp${mine&&p.toLowerCase()===mine?' you':''}">${esc(p)}</span>`).join('')}${isMine?'<span class="yb">You</span>':''}</div>`;
+      return `<div class="rm${isMine?' me':''}">${r.map(p=>`<span class="rmp${mine&&p.toLowerCase()===mine?' you':''}">${esc(p)}</span>`).join('')}${r.length===1?'<span class="rms">sole use</span>':''}${isMine?'<span class="yb">You</span>':''}</div>`;
     }).join('')}</div>`;
   }).join('')}
 </div>`).join('');
@@ -311,7 +322,7 @@ function renderStay(){ return `
 <li>2 – 4 Oct · Osaka: WAYFARER Shinsaibashi (2 nights)</li>
 </ul>
 <h4 class="art-h4"><img class="art-ic" src="${ICON_URL.hotel}" alt="" style="width:22px;height:22px">Room assignments</h4>
-<p>Same room list for every night of a stay. Your own room is outlined in red once you have joined with your name.</p>
+<p>Same room list for every night of a stay. Your own room is outlined in red.</p>
 ${stayRoomsHtml()}
 <div class="warn">Swaps happen — if yours changed, ask a coordinator rather than trusting this page.</div>
 <h4>Meals</h4>
