@@ -103,7 +103,15 @@
   /* nearby tray */
   #tray{position:absolute; left:0; right:0; bottom:0; z-index:500; background:rgba(27,42,68,.95); border-top:4px solid var(--gold); padding:8px 10px 10px}
   #tray .th{display:flex; justify-content:space-between; align-items:center; font-size:9px; color:var(--gold); margin-bottom:6px; padding:0 4px}
-  #tray .th span:last-child{color:#b9c3d6}
+  #tray .th #nextTxt{color:#b9c3d6}
+  /* The header bar stays put when the tray is collapsed - it is the only affordance
+     left to open it again, and it keeps --trayh at a sane non-zero value for the
+     side rail, the panels and #chatPops, which are all anchored off it. */
+  #tray .th #trayToggle{background:none; border:0; padding:2px 4px; margin:-2px -4px; font:inherit; font-size:9px; color:var(--gold); cursor:pointer; letter-spacing:inherit}
+  #tray .th #trayToggle #trayCv{font-size:11px; line-height:1}
+  #tray.collapsed{padding-bottom:6px}
+  #tray.collapsed .th{margin-bottom:0}
+  #tray.collapsed #cards{display:none}
   #cards{display:flex; gap:8px; overflow-x:auto; scrollbar-width:thin; padding-bottom:4px}
   .card2{position:relative; flex:none; width:118px; background:var(--navy2); border:3px solid var(--gold2); padding:6px; cursor:pointer}
   .card2.me{border-color:var(--gold)}
@@ -437,7 +445,7 @@
     <button type="button" class="mrow leave" id="leaveBtn" title="Leave party">🚪 Leave party</button>
   </div>
   <div id="tray">
-    <div class="th px"><span>NEARBY</span><span id="nextTxt">—</span></div>
+    <div class="th px"><button type="button" id="trayToggle" aria-expanded="true" aria-controls="cards" title="Hide the nearby tray">NEARBY <span id="trayCv">▾</span></button><span id="nextTxt">—</span></div>
     <div id="cards"></div>
   </div>
 </div>
@@ -1437,6 +1445,29 @@ function closeGames(){
   document.getElementById('closeGames').onclick=closeGames;
   document.getElementById('games').addEventListener('click',e=>{ if(e.target.id==='games') closeGames(); });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeGames(); });
+})();
+
+/* The nearby tray folds down to just its header bar, for when the map matters more
+   than who is on it. The state class goes on #tray and the button lives in the header,
+   deliberately outside #cards: renderTray() rebuilds #cards' innerHTML roughly once a
+   second (every 6s poll, every GPS fix), so anything rendered in there would be wiped.
+   Nothing else needs adjusting - trackChrome()'s ResizeObserver is watching #tray, so
+   --trayh drops with it and #sidebtns, the panels and #chatPops reflow on their own.
+   renderTray() keeps running while collapsed; it also feeds the HUD's online count,
+   and painting into a hidden #cards costs nothing. */
+const TRAY_KEY='kansai-quest-tray';
+(function buildTrayToggle(){
+  const tray=document.getElementById('tray'), btn=document.getElementById('trayToggle'), cv=document.getElementById('trayCv');
+  let open=true;
+  try{ open = localStorage.getItem(TRAY_KEY)!=='closed'; }catch(e){}
+  const apply=()=>{
+    tray.classList.toggle('collapsed',!open);
+    btn.setAttribute('aria-expanded',open?'true':'false');
+    btn.title=open?'Hide the nearby tray':'Show the nearby tray';
+    cv.textContent=open?'\u25be':'\u25b4';
+  };
+  apply();
+  btn.onclick=()=>{ open=!open; apply(); try{ localStorage.setItem(TRAY_KEY,open?'open':'closed'); }catch(e){} };
 })();
 
 /* auto-rejoin as the remembered player (runs after everything above is defined) */
