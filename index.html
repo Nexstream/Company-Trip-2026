@@ -307,6 +307,18 @@
   .kon .k{border:3px solid var(--ink); padding:10px 12px; background:var(--cream)}
   .kon .k .kn{font-family:'Press Start 2P',monospace; font-size:9px; margin-bottom:6px}
   .kon .k ul{margin-left:18px; font-size:19px}
+  /* room assignments (Flights & hotels tab) */
+  .stayblk{margin:12px 0 20px}
+  .stayhd{font-family:'Press Start 2P',monospace; font-size:9px; line-height:1.9; border-bottom:3px solid var(--ink); padding-bottom:8px; margin-bottom:4px}
+  .stayhd .stayn{color:#6b5f45}
+  .staytype{font-size:18px; color:#6b5f45; margin:12px 0 6px}
+  .rooms{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px}
+  .rm{border:3px solid var(--ink); background:var(--cream); padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px}
+  .rm.me{border-color:var(--red); background:#fff3d6}
+  .rm .rmp{font-size:19px}
+  .rm .rmp+.rmp::before{content:"\00b7"; margin-right:8px; color:#6b5f45}
+  .rm .rmp.you{color:var(--red)}
+  .rm .yb{font-family:'Press Start 2P',monospace; font-size:8px; background:var(--red); color:#fff; padding:2px 5px; margin-left:auto}
   .badge{display:inline-block; font-family:'Press Start 2P',monospace; font-size:8px; padding:3px 6px; background:var(--gold); color:var(--ink); margin-right:6px}
   .warn{background:#fff3d6; border:3px solid var(--gold2); padding:10px 12px; margin:10px 0; max-width:70ch}
   .phr li{margin-bottom:6px}
@@ -1421,7 +1433,7 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      module. -->
 <script src="art.js?v=20260909d"></script>
 <script src="checklist.js?v=20260909d"></script>
-<script src="handbook.js?v=20260909d"></script>
+<script src="handbook.js?v=20260909e"></script>
 <script src="game-hunt.js?v=20260909d"></script>
 <script src="game-race.js?v=20260909d"></script>
 <script src="game-trivia.js?v=20260909d"></script>
