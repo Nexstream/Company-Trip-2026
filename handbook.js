@@ -393,6 +393,37 @@ function stayRoomsHtml(){
 }
 
 function renderStay(){ return `
+<h4>Transport to KLIA — 28 Sep, 10:00 PM</h4>
+<p>Chartered transport leaves the office at 10:00 PM sharp. Be there with your luggage <b>before</b> 10 PM — the coach does not wait, and the check-in counter closes long before the 2:15 AM departure.</p>
+<div class="kon">
+  <div class="k"><div class="kn">On the coach — 18 pax</div><ul class="phr">
+    <li>Ong Chi Yang</li>
+    <li>Toh Jing Wei</li>
+    <li>Cheng Boon Hua</li>
+    <li>Christine Chong Lee Ying</li>
+    <li>Teo Wen Han</li>
+    <li>Cheng Boon Rong</li>
+    <li>Tan Poi Xuan</li>
+    <li>Ramona A/P G Tharmalingam</li>
+    <li>Lee Chai Mun</li>
+    <li>Chuah Kim Hong</li>
+    <li>Manikavasagar A/L Maruthaiah</li>
+    <li>Hew Mun Hon</li>
+    <li>Lee Zheng Jie</li>
+    <li>Low Zheng Feng</li>
+    <li>Gomathi Ganesan</li>
+    <li>Ong Zi Yong</li>
+    <li>Ang Ke Xin</li>
+    <li>Liew Zhao Ying</li>
+  </ul></div>
+  <div class="k"><div class="kn">Making their own way — 3 pax</div><ul class="phr">
+    <li>Kwek Eng Hock</li>
+    <li>Chong Lena</li>
+    <li>Diviya Sundararajamoorthy</li>
+  </ul>
+  <p class="ds">Not on the chartered coach — getting to KLIA independently. Meet the group at check-in, and message a coordinator once you reach the airport.</p></div>
+</div>
+<p class="ds">21 travelling in total. If your name is on the wrong list, or your plan has changed, tell a coordinator before 28 Sep so the seat count stays right.</p>
 <h4 class="art-h4"><img class="art-ic" src="${ICON_URL.plane}" alt="" style="width:22px;height:22px">Flights — Philippine Airlines via Manila</h4>
 <ul>
 <li>Outbound 29 Sep: KL 2:15 AM → Manila 6:15 AM (PR530) · Manila 9:10 AM → Kansai 2:10 PM (PR412)</li>
