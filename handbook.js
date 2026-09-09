@@ -29,6 +29,115 @@ function renderTips(){ return `
 <h4>Language &amp; etiquette</h4>
 <p>Phrases, the lines staff will say to you, and what to do or avoid at a shrine, a table or an onsen all live on the <b>Japanese</b> tab.</p>`; }
 
+/* Group rules — how we move as a company group, and the one rule
+   under all of them: a coordinator always knows where you are.
+   Coordinators are the "person in charge" for the whole trip.
+   Keep this tab to conduct and reporting; logistics stay on
+   Flights & hotels, etiquette on Japanese. */
+function renderRules(){ return `
+<p>This is a company trip, not 21 solo holidays that happen to share a coach. Everything below comes down to one rule: <b>a coordinator always knows where you are and that you are okay.</b> Nobody minds a message that turns out to be unnecessary. Everybody minds a headcount that comes up one short.</p>
+
+<h4 class="art-h4">${art('passport',22)}Who is in charge</h4>
+<div class="kon">
+  <div class="k"><div class="kn">Coordinators</div><ul class="phr">
+    <li><b>James</b></li>
+    <li><b>Zack</b></li>
+    <li><b>Chai Mun</b></li>
+    <li><b>Diviya</b></li>
+  </ul>
+  <p class="ds">Save all four numbers before you fly. If one does not pick up, call the next — do not wait on a single person.</p></div>
+  <div class="k"><div class="kn">How to reach them</div><ul class="phr">
+    <li><b>Urgent</b> — phone call. Not a text, not a chat message. A call gets answered; a message gets read later.</li>
+    <li><b>Not urgent</b> — the group chat, or the Party chat in this app.</li>
+    <li><b>Where you are</b> — keep this app open with location on. The live map is how the coordinators find a straggler without ringing everyone.</li>
+  </ul></div>
+</div>
+
+<h4>Always report to a coordinator when…</h4>
+<div class="kon">
+  <div class="k"><div class="kn">Right now — call</div><ul class="phr">
+    <li>You are <b>separated from the group</b> and cannot see anyone you know.</li>
+    <li>Anyone is <b>hurt, unwell, or has fainted</b> — even if they say they are fine.</li>
+    <li>Your <b>passport</b> is lost or stolen.</li>
+    <li>Police, hotel security, or a shopkeeper are involved in anything, for any reason.</li>
+    <li>You are going to <b>miss the coach, the train or a meet-up time</b>. Call before the time, not after.</li>
+    <li>An accident, a fall, a broken item, or damage to a room or a vehicle.</li>
+  </ul></div>
+  <div class="k"><div class="kn">Before you do it — message</div><ul class="phr">
+    <li>Leaving the group for any reason, including a toilet run at a crowded stop. Tell someone; do not just go.</li>
+    <li>Splitting off during free &amp; easy: <b>who you are with and roughly where</b>.</li>
+    <li>Skipping an activity, staying at the hotel, or heading back separately.</li>
+    <li>Staying out past the time agreed for that evening.</li>
+    <li>Changing rooms, seats, or coach lists — see Flights &amp; hotels; swaps go through a coordinator, not between yourselves.</li>
+  </ul></div>
+  <div class="k"><div class="kn">Same day — mention it</div><ul class="phr">
+    <li>A lost wallet, phone, IC card or bag — the hotel and the venue can often trace it, but only if asked quickly.</li>
+    <li>Anything wrong with your room, a meal, or a booking.</li>
+    <li>Allergy or dietary changes, so the next company dinner is right.</li>
+    <li>Feeling run down. A small thing on Day 2 is a ruined Day 4 if nobody knows.</li>
+  </ul></div>
+</div>
+
+<h4 class="art-h4">${art('backpack',22)}Moving as a group</h4>
+<ul>
+<li><b>Headcount before every departure.</b> A coordinator counts before the coach, the train or the ropeway moves. Do not board until you have been counted, and do not wander off once you have.</li>
+<li><b>Be five minutes early</b> to every meeting time. Japanese schedules run to the minute and so does ours. The coach leaves at the stated time.</li>
+<li><b>Buddy up.</b> Nobody is alone at a crowded stop — Fushimi Inari, Nishiki, Kiyomizu, Nara Park, Kuromon. Know who your buddy is before you get off the coach.</li>
+<li><b>Stay within sight</b> of the group in crowds. If you stop for a photo or a stall, the person behind you stops too, so the chain never breaks.</li>
+<li><b>Agree the regroup point and time</b> before any free &amp; easy block, and repeat it back. The itinerary footer says this too; it is the most-broken rule on any group trip.</li>
+<li><b>Follow the coordinator's call on the day.</b> Weather, queues and closures will change the plan. When they say we are moving, we are moving.</li>
+<li>If you miss the coach or train, <b>call a coordinator first</b>, then make your own way to the next stop or the hotel. Catching up is at your own cost.</li>
+</ul>
+
+<h4 class="art-h4">${art('powerbank',22)}Free &amp; easy time</h4>
+<ul>
+<li>Free &amp; easy means free to roam, not free from the group. You are still on the trip; a coordinator still needs to know who is where.</li>
+<li>Phone <b>charged, data on, ringer on</b>. A dead phone is the difference between a five-minute wait and a search. Power banks are on the Pack list for this reason.</li>
+<li>Check the group chat before you set off and once an hour while you are out. Plan changes go there first.</li>
+<li>Be back at the hotel, or at the regroup point, by the time agreed that evening. Later is fine <b>if a coordinator has said yes</b> — not after the fact.</li>
+<li>Carry the hotel's address card (reception has them) and your passport. Japanese law requires foreign visitors to carry their passport; a photocopy does not count.</li>
+<li>Do not go anywhere alone late at night, and do not leave anyone behind who has had too much to drink. Get them to the hotel together, then tell a coordinator.</li>
+</ul>
+
+<h4 class="art-h4"><img class="art-ic" src="${ICON_URL.hotel}" alt="" style="width:22px;height:22px">At the hotels</h4>
+<ul>
+<li>Rooms are as on the list in Flights &amp; hotels. Swaps happen, but through a coordinator, so the hotel and the headcount stay right.</li>
+<li>Quiet after 10 PM in corridors and rooms. Japanese hotels enforce this, and a complaint lands on the company booking, not on you alone.</li>
+<li><b>No smoking in rooms</b>, including vapes. Cleaning charges are steep and are yours.</li>
+<li>Minibar, laundry, room service and any damage are <b>your own bill</b>. Settle at checkout without being chased.</li>
+<li>Checkout mornings: bags in the lobby by the time given, key returned, room checked for chargers and passports. Three hotels, three chances to leave something behind.</li>
+</ul>
+
+<h4 class="art-h4">${art('umbrella',22)}Health and safety</h4>
+<ul>
+<li>Tell a coordinator the moment you feel unwell. Group travel insurance is arranged for everyone; the coordinators hold the policy details and will deal with the clinic.</li>
+<li>Carry your own medication in your hand luggage, with the prescription. Some common Malaysian medicines are controlled in Japan — check before you fly and ask a coordinator if unsure.</li>
+<li>Japan emergency numbers: <b>110</b> police, <b>119</b> ambulance and fire. Call them first in a real emergency, then a coordinator.</li>
+<li>Earthquakes are a fact of life here. If one hits, stay put, cover your head, follow the hotel or venue staff, then check in on the group chat so nobody comes looking for you.</li>
+<li>Drink water. Early October is warm, the days are long and mostly on foot, and dehydration is the most common way a colleague ends up at a clinic.</li>
+</ul>
+
+<h4 class="art-h4">${art('beercan',22)}Conduct</h4>
+<ul>
+<li>You are a Nexstream employee in public for six days. Behave like it in a shop, a shrine, a train carriage and a bar alike. Company policies on conduct apply for the whole trip, including free &amp; easy time.</li>
+<li>Drink in moderation at company dinners and after. Being unable to walk back or make the morning headcount is a problem for the whole group, not a story for later.</li>
+<li>Japanese law is strict and enforced. Drugs of any kind are a criminal matter, drinking age is 20, and public disorder is treated seriously. No warnings, no second chances, and the company cannot get you out of it.</li>
+<li>Respect the etiquette on the Japanese tab. What looks like a small slip to us reads as disrespect to the people around us.</li>
+<li>Ask before posting a colleague's photo. Some people would rather not appear online; the answer is theirs.</li>
+<li>Do not discuss client or company business anywhere you can be overheard.</li>
+<li>Disagreements happen on long days. Take them to a coordinator quietly, not to the group.</li>
+</ul>
+
+<h4 class="art-h4">${art('yennote',22)}Money and valuables</h4>
+<ul>
+<li>Company pays for what the Flights &amp; hotels tab lists as company-arranged. Everything else during free &amp; easy — lunches, shopping, extra drinks, taxis you chose to take — is yours.</li>
+<li>Do not ask a coordinator to front cash except in a genuine emergency, and settle it before the flight home.</li>
+<li>Keep passport, cards and cash on your person, not in the coach or a checked bag. Japan is safe, but a coach parked at Nara Park is not a locker.</li>
+<li>Lost passport: coordinator first, then a police report at the nearest koban. The Embassy of Malaysia in Tokyo needs that report to issue a travel document, and it takes days — so the sooner the better.</li>
+</ul>
+
+<div class="warn"><b>If in doubt, tell a coordinator.</b> There is no rule about anything you can report "too early" or "too small". The only thing that causes a problem on a group trip is the thing nobody knew about.</div>`; }
+
 function renderLang(){ return `
 <p>Almost nobody expects you to speak Japanese — but five words, said with a small bow, change how the whole trip feels. Romaji is written the way you say it: <b>ou</b> = long "oh", <b>ii</b> = long "ee", <b>r</b> is halfway to an "l", and every vowel gets its own beat (<i>a-ri-ga-to-o</i>).</p>
 
