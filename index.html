@@ -1403,6 +1403,7 @@ const GAME_TABS = [
   {id:'race',   label:'Race',   fn:'Race'},
   {id:'trivia', label:'Trivia', fn:'Trivia'},
   {id:'sushi',  label:'Sushi',  fn:'Sushi'},
+  {id:'tako',   label:'Tako',   fn:'Tako'},
 ];
 let gameTab='hunt', gameTickTimer=null, gameOpen=false;
 function gameFnName(id){ const t=GAME_TABS.find(t=>t.id===id); return t?t.fn:null; }
@@ -1485,7 +1486,9 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
 <script src="game-hunt.js?v=20260909e"></script>
 <script src="game-race.js?v=20260909e"></script>
 <script src="game-trivia.js?v=20260909e"></script>
-<script src="game-sushi.js?v=20260909e"></script>
+<script src="rt.js?v=20260909h"></script>
+<script src="game-sushi.js?v=20260909h"></script>
+<script src="game-tako.js?v=20260909h"></script>
 <script src="chat.js?v=20260909e"></script>
 <script src="link.js?v=20260909e"></script>
 </body>
