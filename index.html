@@ -1359,6 +1359,7 @@ setInterval(updateHud,60000);
    ========================================================= */
 const TABS = [
   {id:'itin', label:'Itinerary', render:()=>renderItin()},
+  {id:'rules', label:'Group rules', render:()=>renderRules()},
   {id:'tips', label:'Japan tips', render:()=>renderTips()},
   {id:'lang', label:'Japanese', render:()=>renderLang()},
   {id:'must', label:'Must visit', render:()=>renderMust()},
@@ -1482,7 +1483,7 @@ if(saved&&saved.name){ selectedAv=saved.av||0; startGame(true); }
      module. -->
 <script src="art.js?v=20260909e"></script>
 <script src="checklist.js?v=20260909e"></script>
-<script src="handbook.js?v=20260909g"></script>
+<script src="handbook.js?v=20260909h"></script>
 <script src="game-hunt.js?v=20260909e"></script>
 <script src="game-race.js?v=20260909e"></script>
 <script src="game-trivia.js?v=20260909e"></script>
